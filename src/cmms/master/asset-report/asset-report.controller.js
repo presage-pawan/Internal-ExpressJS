@@ -1,0 +1,71 @@
+import { AssetReportService } from './asset-report.service.js';
+
+export class AssetReportController {
+    getService = (req) => new AssetReportService(req.db_type);
+
+    getAll = async (req, res, next) => {
+        try {
+            const { companyId, query: { include } } = req;
+            const filter = { visible: { $ne: false } };
+            if (companyId) filter.accountId = companyId;
+            const data = await this.getService(req).getAll(filter, { include });
+            res.status(200).json({ status: true, data });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    getById = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { include } = req.query;
+            const data = await this.getService(req).getById(id, { include });
+            if (!data) throw Object.assign(new Error('AssetReport not found'), { status: 404 });
+            res.status(200).json({ status: true, data });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    create = async (req, res, next) => {
+        try {
+            const data = await this.getService(req).create({ ...req.body, createdBy: req.user.id, accountId: req.companyId });
+            res.status(201).json({ status: true, message: 'AssetReport created', data });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    update = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id });
+            if (!data) throw Object.assign(new Error('AssetReport not found'), { status: 404 });
+            res.status(200).json({ status: true, message: 'AssetReport updated', data });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    updatePartial = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id });
+            if (!data) throw Object.assign(new Error('AssetReport not found'), { status: 404 });
+            res.status(200).json({ status: true, message: 'AssetReport updated', data });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    delete = async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const data = await this.getService(req).delete(id);
+            if (!data) throw Object.assign(new Error('AssetReport not found'), { status: 404 });
+            res.status(200).json({ status: true, message: 'AssetReport deleted' });
+        } catch (err) {
+            next(err);
+        }
+    };
+}
