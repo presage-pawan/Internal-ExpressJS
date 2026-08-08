@@ -2,16 +2,37 @@ import { body, query } from 'express-validator';
 import { INVOICE_TYPES } from '../../schemas/invoice.model.js';
 
 const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+const sensorPrices = {
+  edgepulse: 5500,
+  vibo: 7000
+};
 
 const isRecurringType = (invoiceType) => invoiceType === 'recurring' || invoiceType === 'mixed';
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
+
+const toSensorQuantity = (value, fieldName) => {
+  if (!hasValue(value)) {
+    return 0;
+  }
+
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
+    throw new Error(`${fieldName} must be a whole number 0 or greater`);
+  }
+
+  return quantity;
+};
 
 const validateInvoiceAmounts = (payload) => {
   const invoiceType = payload.invoice_type;
   const invoiceValue = Number(payload.invoice_value);
   const oneTimeAmount = Number(payload.one_time_amount || 0);
   const recurringAmount = Number(payload.recurring_amount || 0);
+  const edgepulseQuantity = toSensorQuantity(payload.edgepulse_quantity, 'edgepulse_quantity');
+  const viboQuantity = toSensorQuantity(payload.vibo_quantity, 'vibo_quantity');
+  const sensorHardwareAmount = (edgepulseQuantity * sensorPrices.edgepulse) + (viboQuantity * sensorPrices.vibo);
+  const hasSensorBreakup = edgepulseQuantity > 0 || viboQuantity > 0;
 
   if (!INVOICE_TYPES.includes(invoiceType)) {
     throw new Error('Invalid invoice type');
@@ -22,6 +43,14 @@ const validateInvoiceAmounts = (payload) => {
   }
 
   if (invoiceType === 'mixed') {
+    if (hasSensorBreakup) {
+      if (sensorHardwareAmount >= invoiceValue) {
+        throw new Error('Sensor hardware amount must be less than invoice value');
+      }
+
+      return true;
+    }
+
     if (!hasValue(payload.one_time_amount) || !hasValue(payload.recurring_amount)) {
       throw new Error('Mixed invoice requires one_time_amount and recurring_amount');
     }
@@ -123,6 +152,8 @@ const baseInvoiceValidators = [
   body('gst_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('GST amount must be 0 or greater'),
   body('one_time_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('One-time amount must be 0 or greater'),
   body('recurring_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Recurring amount must be 0 or greater'),
+  body('edgepulse_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('EdgePulse quantity must be a whole number 0 or greater'),
+  body('vibo_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('Vibo quantity must be a whole number 0 or greater'),
   body('contract_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract start date must be valid'),
   body('contract_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract end date must be valid'),
   body('notes').optional({ nullable: true, checkFalsy: true }).trim().isString()
@@ -153,6 +184,8 @@ export const updateInvoiceValidator = [
   body('gst_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('GST amount must be 0 or greater'),
   body('one_time_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('One-time amount must be 0 or greater'),
   body('recurring_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Recurring amount must be 0 or greater'),
+  body('edgepulse_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('EdgePulse quantity must be a whole number 0 or greater'),
+  body('vibo_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('Vibo quantity must be a whole number 0 or greater'),
   body('contract_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract start date must be valid'),
   body('contract_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract end date must be valid'),
   body('notes').optional({ nullable: true, checkFalsy: true }).trim().isString()

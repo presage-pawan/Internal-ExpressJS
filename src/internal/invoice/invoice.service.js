@@ -5,6 +5,10 @@ import { InvoiceRevenueScheduleModel } from '../../schemas/invoice-revenue-sched
 
 const MONTH_FORMAT_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 const MONEY_DECIMALS = 2;
+const SENSOR_PRICES = Object.freeze({
+  edgepulse: 5500,
+  vibo: 7000
+});
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -27,6 +31,37 @@ const toNumber = (value, defaultValue = 0) => {
 };
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(MONEY_DECIMALS));
+
+const toQuantity = (value, fieldName) => {
+  if (value === undefined || value === null || value === '') {
+    return 0;
+  }
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0 || !Number.isInteger(numericValue)) {
+    throw Object.assign(new Error(`${fieldName} must be a whole number 0 or greater`), { status: 400 });
+  }
+
+  return numericValue;
+};
+
+const buildSensorBreakup = (payload, invoiceType) => {
+  const edgepulseQuantity = invoiceType === 'mixed' ? toQuantity(payload.edgepulse_quantity, 'EdgePulse quantity') : 0;
+  const viboQuantity = invoiceType === 'mixed' ? toQuantity(payload.vibo_quantity, 'Vibo quantity') : 0;
+  const edgepulseAmount = roundMoney(edgepulseQuantity * SENSOR_PRICES.edgepulse);
+  const viboAmount = roundMoney(viboQuantity * SENSOR_PRICES.vibo);
+
+  return {
+    edgepulse_quantity: edgepulseQuantity,
+    edgepulse_unit_price: SENSOR_PRICES.edgepulse,
+    edgepulse_amount: edgepulseAmount,
+    vibo_quantity: viboQuantity,
+    vibo_unit_price: SENSOR_PRICES.vibo,
+    vibo_amount: viboAmount,
+    hardware_amount: roundMoney(edgepulseAmount + viboAmount),
+    has_sensor_breakup: edgepulseQuantity > 0 || viboQuantity > 0
+  };
+};
 
 const normalizeSubscriptionScheduleAmount = (schedule) => {
   if (schedule.invoice_type !== 'recurring' || schedule.revenue_month !== schedule.invoice_month) {
@@ -332,6 +367,7 @@ export class InvoiceService {
     let recurringAmount = roundMoney(toNumber(payload.recurring_amount, invoiceType === 'recurring' ? invoiceValue : 0));
     let contractStartDate = toDate(payload.contract_start_date, 'Contract start date');
     let contractEndDate = toDate(payload.contract_end_date, 'Contract end date');
+    const sensorBreakup = buildSensorBreakup(payload, invoiceType);
 
     if (invoiceType === 'one_time') {
       oneTimeAmount = invoiceValue;
@@ -346,6 +382,15 @@ export class InvoiceService {
     }
 
     if (invoiceType === 'mixed') {
+      if (sensorBreakup.has_sensor_breakup) {
+        if (sensorBreakup.hardware_amount >= invoiceValue) {
+          throw Object.assign(new Error('Sensor hardware amount must be less than invoice value'), { status: 400 });
+        }
+
+        oneTimeAmount = sensorBreakup.hardware_amount;
+        recurringAmount = roundMoney(invoiceValue - oneTimeAmount);
+      }
+
       if (oneTimeAmount <= 0 || recurringAmount <= 0) {
         throw Object.assign(new Error('Mixed invoice requires one-time and recurring amounts greater than 0'), { status: 400 });
       }
@@ -381,6 +426,12 @@ export class InvoiceService {
       gst_amount: gstAmount,
       one_time_amount: oneTimeAmount,
       recurring_amount: recurringAmount,
+      edgepulse_quantity: sensorBreakup.edgepulse_quantity,
+      edgepulse_unit_price: sensorBreakup.edgepulse_unit_price,
+      edgepulse_amount: sensorBreakup.edgepulse_amount,
+      vibo_quantity: sensorBreakup.vibo_quantity,
+      vibo_unit_price: sensorBreakup.vibo_unit_price,
+      vibo_amount: sensorBreakup.vibo_amount,
       contract_start_date: contractStartDate,
       contract_end_date: contractEndDate,
       notes: payload.notes ? String(payload.notes).trim() : undefined,

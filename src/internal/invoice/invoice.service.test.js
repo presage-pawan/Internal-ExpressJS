@@ -123,6 +123,56 @@ describe('InvoiceService schedule generation', () => {
     );
   });
 
+  it('calculates mixed invoice hardware and software amounts from EdgePulse and Vibo quantities', () => {
+    const userId = new Types.ObjectId();
+    const invoicePayload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-SENSOR',
+      invoice_date: '2026-08-10',
+      invoice_type: 'mixed',
+      invoice_value: 100000,
+      edgepulse_quantity: 2,
+      vibo_quantity: 1,
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId, isCreate: true });
+
+    assert.equal(invoicePayload.edgepulse_quantity, 2);
+    assert.equal(invoicePayload.edgepulse_unit_price, 5500);
+    assert.equal(invoicePayload.edgepulse_amount, 11000);
+    assert.equal(invoicePayload.vibo_quantity, 1);
+    assert.equal(invoicePayload.vibo_unit_price, 7000);
+    assert.equal(invoicePayload.vibo_amount, 7000);
+    assert.equal(invoicePayload.one_time_amount, 18000);
+    assert.equal(invoicePayload.recurring_amount, 82000);
+
+    const rows = service.buildScheduleRows({
+      _id: new Types.ObjectId(),
+      ...invoicePayload
+    }, userId);
+    const hardwareRow = rows.find((row) => row.revenue_type === 'one_time');
+    const recurringRows = rows.filter((row) => row.revenue_type === 'recurring');
+
+    assert.equal(hardwareRow.amount, 18000);
+    assert.equal(recurringRows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), 82000);
+  });
+
+  it('rejects mixed invoice sensor hardware totals that leave no software amount', () => {
+    assert.throws(
+      () => service.buildInvoicePayload({
+        customer_name: 'ACME Industries',
+        invoice_no: 'INV-SENSOR-BAD',
+        invoice_date: '2026-08-10',
+        invoice_type: 'mixed',
+        invoice_value: 11000,
+        edgepulse_quantity: 2,
+        contract_start_date: '2026-08-01',
+        contract_end_date: '2027-07-31'
+      }, { userId: new Types.ObjectId(), isCreate: true }),
+      /Sensor hardware amount must be less than invoice value/
+    );
+  });
+
   it('builds monthly report totals and separates recurring revenue by invoice month', () => {
     const reportMonth = '2026-08';
     const previousInvoiceId = new Types.ObjectId();
