@@ -5,6 +5,21 @@ import { InvoiceService } from './invoice.service.js';
 
 const service = new InvoiceService('production');
 
+class BulkImportTestInvoiceService extends InvoiceService {
+  async create(payload) {
+    if (payload.invoice_no === 'FAIL') {
+      throw new Error('Simulated duplicate invoice');
+    }
+
+    return {
+      _id: new Types.ObjectId(),
+      id: new Types.ObjectId(),
+      invoice_no: payload.invoice_no,
+      customer_name: payload.customer_name
+    };
+  }
+}
+
 describe('InvoiceService schedule generation', () => {
   it('tracks one-time invoices only in the invoice month', () => {
     const invoice = {
@@ -173,5 +188,21 @@ describe('InvoiceService schedule generation', () => {
         ['recurring_previous_invoice', 10000]
       ].sort()
     );
+  });
+
+  it('bulk import keeps processing rows and reports failed rows separately', async () => {
+    const importService = new BulkImportTestInvoiceService('production');
+
+    const result = await importService.bulkCreate([
+      { invoice_no: 'INV-OK', customer_name: 'ACME Industries' },
+      { invoice_no: 'FAIL', customer_name: 'Beta Metals' },
+      { invoice_no: 'INV-OK-2', customer_name: 'Core Systems' }
+    ], new Types.ObjectId());
+
+    assert.equal(result.total_count, 3);
+    assert.equal(result.created_count, 2);
+    assert.equal(result.failed_count, 1);
+    assert.deepEqual(result.results.map((row) => row.status), ['created', 'failed', 'created']);
+    assert.equal(result.results[1].message, 'Simulated duplicate invoice');
   });
 });

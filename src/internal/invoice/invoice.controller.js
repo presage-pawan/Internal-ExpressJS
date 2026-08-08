@@ -13,6 +13,15 @@ export class InvoiceController {
     }
   };
 
+  bulkCreate = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).bulkCreate(req.body.invoices, req.user?._id || req.user?.id);
+      res.status(201).json({ status: true, message: 'Invoice import processed successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   getAll = async (req, res, next) => {
     try {
       const data = await this.getService(req).findAll(req.query);

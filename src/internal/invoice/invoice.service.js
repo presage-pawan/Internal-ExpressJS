@@ -82,6 +82,44 @@ export class InvoiceService {
     return this.mapInvoiceWithSchedules(invoice, schedules);
   }
 
+  async bulkCreate(rows = [], userId) {
+    if (!Array.isArray(rows) || !rows.length) {
+      throw Object.assign(new Error('Invoices array is required'), { status: 400 });
+    }
+
+    const results = [];
+
+    for (const [index, row] of rows.entries()) {
+      try {
+        const createdInvoice = await this.create(row, userId);
+        results.push({
+          row: index + 1,
+          status: 'created',
+          invoice_id: createdInvoice.id || createdInvoice._id,
+          invoice_no: createdInvoice.invoice_no,
+          customer_name: createdInvoice.customer_name
+        });
+      } catch (error) {
+        results.push({
+          row: index + 1,
+          status: 'failed',
+          invoice_no: row?.invoice_no,
+          customer_name: row?.customer_name,
+          message: error?.message || 'Invoice import failed'
+        });
+      }
+    }
+
+    const createdCount = results.filter((row) => row.status === 'created').length;
+
+    return {
+      total_count: rows.length,
+      created_count: createdCount,
+      failed_count: rows.length - createdCount,
+      results
+    };
+  }
+
   async findAll(query = {}) {
     const filter = this.buildListFilter(query);
     return this.invoiceModel.find(filter).sort({ invoice_date: -1, createdAt: -1 }).lean();

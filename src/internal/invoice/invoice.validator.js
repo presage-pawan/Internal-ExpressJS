@@ -65,6 +65,49 @@ const validateContractDates = (payload) => {
   return true;
 };
 
+const validateBulkInvoices = (rows = []) => {
+  if (!Array.isArray(rows)) {
+    throw new Error('Invoices must be an array');
+  }
+
+  if (!rows.length) {
+    throw new Error('At least one invoice row is required');
+  }
+
+  if (rows.length > 500) {
+    throw new Error('Maximum 500 invoice rows can be imported at once');
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      throw new Error(`Row ${rowNumber}: invoice data is invalid`);
+    }
+
+    if (!hasValue(row.customer_name)) {
+      throw new Error(`Row ${rowNumber}: customer_name is required`);
+    }
+
+    if (!hasValue(row.invoice_no)) {
+      throw new Error(`Row ${rowNumber}: invoice_no is required`);
+    }
+
+    if (!hasValue(row.invoice_date) || Number.isNaN(new Date(row.invoice_date).getTime())) {
+      throw new Error(`Row ${rowNumber}: invoice_date must be a valid date`);
+    }
+
+    try {
+      validateInvoiceAmounts(row);
+      validateContractDates(row);
+    } catch (error) {
+      throw new Error(`Row ${rowNumber}: ${error.message}`);
+    }
+  });
+
+  return true;
+};
+
 const baseInvoiceValidators = [
   body('account_id').optional({ nullable: true, checkFalsy: true }).isMongoId().withMessage('account_id must be a valid ID'),
   body('customer_name').trim().notEmpty().withMessage('Customer name is required'),
@@ -89,6 +132,10 @@ export const createInvoiceValidator = [
   ...baseInvoiceValidators,
   body().custom(validateInvoiceAmounts),
   body().custom(validateContractDates)
+];
+
+export const bulkCreateInvoiceValidator = [
+  body('invoices').custom(validateBulkInvoices)
 ];
 
 export const updateInvoiceValidator = [

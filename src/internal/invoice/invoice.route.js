@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { validate } from '../../middlewares/validate.js';
 import { InvoiceController } from './invoice.controller.js';
 import {
+  bulkCreateInvoiceValidator,
   createInvoiceValidator,
   listInvoiceValidator,
   monthlyReportValidator,
@@ -24,6 +25,9 @@ router.use(requireAdmin);
 router.route('/')
   .get(listInvoiceValidator, validate, controller.getAll)
   .post(createInvoiceValidator, validate, controller.create);
+
+router.route('/bulk')
+  .post(bulkCreateInvoiceValidator, validate, controller.bulkCreate);
 
 router.route('/reports/monthly')
   .get(monthlyReportValidator, validate, controller.getMonthlyReport);
