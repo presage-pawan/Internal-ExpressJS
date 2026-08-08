@@ -41,6 +41,34 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(rows[0].amount, 25000);
   });
 
+  it('tracks other miscellaneous invoices only in the invoice month', () => {
+    const payload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-MISC',
+      invoice_date: '2026-08-12',
+      invoice_type: 'other',
+      invoice_value: 7500,
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(payload.invoice_type, 'other');
+    assert.equal(payload.one_time_amount, 7500);
+    assert.equal(payload.recurring_amount, 0);
+    assert.equal(payload.contract_start_date, null);
+    assert.equal(payload.contract_end_date, null);
+
+    const rows = service.buildScheduleRows({
+      _id: new Types.ObjectId(),
+      ...payload
+    }, new Types.ObjectId());
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].revenue_month, '2026-08');
+    assert.equal(rows[0].revenue_type, 'one_time');
+    assert.equal(rows[0].amount, 7500);
+  });
+
   it('tracks subscription invoices only in the invoice month while keeping contract dates as reference', () => {
     const invoice = {
       _id: new Types.ObjectId(),

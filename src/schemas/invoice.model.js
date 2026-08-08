@@ -1,7 +1,7 @@
 import { Schema } from 'mongoose';
 import { AccountModel } from '../cmms/schemas/company.model.js';
 
-export const INVOICE_TYPES = ['one_time', 'recurring', 'mixed'];
+export const INVOICE_TYPES = ['one_time', 'other', 'recurring', 'mixed'];
 export const INVOICE_STATUSES = ['active', 'cancelled'];
 
 const requiresRecurringDates = function () {

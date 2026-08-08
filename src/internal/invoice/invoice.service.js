@@ -14,6 +14,8 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$
 
 const isRecurringType = (invoiceType) => invoiceType === 'recurring' || invoiceType === 'mixed';
 
+const isOneTimeType = (invoiceType) => invoiceType === 'one_time' || invoiceType === 'other';
+
 const isReportableSchedule = (schedule) => {
   if (schedule.invoice_type !== 'recurring') {
     return true;
@@ -355,7 +357,7 @@ export class InvoiceService {
       throw Object.assign(new Error('Invoice date is required'), { status: 400 });
     }
 
-    if (!['one_time', 'recurring', 'mixed'].includes(invoiceType)) {
+    if (!['one_time', 'other', 'recurring', 'mixed'].includes(invoiceType)) {
       throw Object.assign(new Error('Invalid invoice type'), { status: 400 });
     }
 
@@ -363,13 +365,13 @@ export class InvoiceService {
       throw Object.assign(new Error('Invoice value must be greater than 0'), { status: 400 });
     }
 
-    let oneTimeAmount = roundMoney(toNumber(payload.one_time_amount, invoiceType === 'one_time' ? invoiceValue : 0));
+    let oneTimeAmount = roundMoney(toNumber(payload.one_time_amount, isOneTimeType(invoiceType) ? invoiceValue : 0));
     let recurringAmount = roundMoney(toNumber(payload.recurring_amount, invoiceType === 'recurring' ? invoiceValue : 0));
     let contractStartDate = toDate(payload.contract_start_date, 'Contract start date');
     let contractEndDate = toDate(payload.contract_end_date, 'Contract end date');
     const sensorBreakup = buildSensorBreakup(payload, invoiceType);
 
-    if (invoiceType === 'one_time') {
+    if (isOneTimeType(invoiceType)) {
       oneTimeAmount = invoiceValue;
       recurringAmount = 0;
       contractStartDate = null;
@@ -460,7 +462,7 @@ export class InvoiceService {
     const rows = [];
     const invoiceObject = typeof invoice.toObject === 'function' ? invoice.toObject() : invoice;
 
-    if (invoiceObject.invoice_type === 'one_time' || invoiceObject.invoice_type === 'mixed') {
+    if (isOneTimeType(invoiceObject.invoice_type) || invoiceObject.invoice_type === 'mixed') {
       rows.push(this.buildScheduleRow(invoiceObject, {
         revenueDate: monthEnd(invoiceObject.invoice_date),
         revenueType: 'one_time',
