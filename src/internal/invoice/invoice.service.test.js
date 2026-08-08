@@ -185,7 +185,57 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(recurringRows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), 82000);
   });
 
-  it('rejects mixed invoice sensor hardware totals that leave no software amount', () => {
+  it('adds miscellaneous hardware items to mixed invoice hardware before splitting software', () => {
+    const userId = new Types.ObjectId();
+    const invoicePayload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-MISC-HW',
+      invoice_date: '2026-08-10',
+      invoice_type: 'mixed',
+      invoice_value: 120000,
+      edgepulse_quantity: 1,
+      vibo_quantity: 1,
+      misc_items: [
+        { item_name: 'Router', quantity: 2, unit_price: 2500 },
+        { item_name: 'SIM', quantity: 10, unit_price: 100 }
+      ],
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId, isCreate: true });
+
+    assert.equal(invoicePayload.one_time_amount, 18500);
+    assert.equal(invoicePayload.recurring_amount, 101500);
+    assert.deepEqual(
+      invoicePayload.misc_items.map((item) => [item.item_name, item.quantity, item.unit_price, item.amount]),
+      [
+        ['Router', 2, 2500, 5000],
+        ['SIM', 10, 100, 1000]
+      ]
+    );
+  });
+
+  it('supports mixed invoices with miscellaneous hardware items and no sensors', () => {
+    const invoicePayload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-MISC-ONLY',
+      invoice_date: '2026-08-10',
+      invoice_type: 'mixed',
+      invoice_value: 50000,
+      misc_items: [
+        { item_name: 'Panel', quantity: 2, unit_price: 4000 }
+      ],
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(invoicePayload.edgepulse_quantity, 0);
+    assert.equal(invoicePayload.vibo_quantity, 0);
+    assert.equal(invoicePayload.one_time_amount, 8000);
+    assert.equal(invoicePayload.recurring_amount, 42000);
+    assert.equal(invoicePayload.misc_items[0].amount, 8000);
+  });
+
+  it('rejects mixed invoice hardware item totals that leave no software amount', () => {
     assert.throws(
       () => service.buildInvoicePayload({
         customer_name: 'ACME Industries',
@@ -197,7 +247,7 @@ describe('InvoiceService schedule generation', () => {
         contract_start_date: '2026-08-01',
         contract_end_date: '2027-07-31'
       }, { userId: new Types.ObjectId(), isCreate: true }),
-      /Sensor hardware amount must be less than invoice value/
+      /Hardware item amount must be less than invoice value/
     );
   });
 

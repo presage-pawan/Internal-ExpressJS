@@ -34,6 +34,12 @@ const InvoiceSchema = new Schema(
     vibo_quantity: { type: Number, min: 0, default: 0 },
     vibo_unit_price: { type: Number, min: 0, default: 7000 },
     vibo_amount: { type: Number, min: 0, default: 0 },
+    misc_items: [{
+      item_name: { type: String, trim: true },
+      quantity: { type: Number, min: 0, default: 0 },
+      unit_price: { type: Number, min: 0, default: 0 },
+      amount: { type: Number, min: 0, default: 0 }
+    }],
     contract_start_date: { type: Date, required: requiresRecurringDates },
     contract_end_date: { type: Date, required: requiresRecurringDates },
 

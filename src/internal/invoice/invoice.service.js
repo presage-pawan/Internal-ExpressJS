@@ -47,11 +47,50 @@ const toQuantity = (value, fieldName) => {
   return numericValue;
 };
 
-const buildSensorBreakup = (payload, invoiceType) => {
+const buildMiscItems = (items = [], invoiceType) => {
+  if (invoiceType !== 'mixed' || !Array.isArray(items)) {
+    return { misc_items: [], amount: 0 };
+  }
+
+  const miscItems = items
+    .map((item) => ({
+      item_name: String(item?.item_name || item?.name || '').trim(),
+      quantity: toNumber(item?.quantity, 0),
+      unit_price: roundMoney(toNumber(item?.unit_price, 0))
+    }))
+    .filter((item) => item.item_name || item.quantity > 0 || item.unit_price > 0)
+    .map((item) => {
+      if (!item.item_name) {
+        throw Object.assign(new Error('Misc item name is required'), { status: 400 });
+      }
+
+      if (item.quantity <= 0) {
+        throw Object.assign(new Error(`Quantity for ${item.item_name} must be greater than 0`), { status: 400 });
+      }
+
+      if (item.unit_price <= 0) {
+        throw Object.assign(new Error(`Unit price for ${item.item_name} must be greater than 0`), { status: 400 });
+      }
+
+      return {
+        ...item,
+        amount: roundMoney(item.quantity * item.unit_price)
+      };
+    });
+
+  return {
+    misc_items: miscItems,
+    amount: roundMoney(miscItems.reduce((total, item) => total + item.amount, 0))
+  };
+};
+
+const buildHardwareBreakup = (payload, invoiceType) => {
   const edgepulseQuantity = invoiceType === 'mixed' ? toQuantity(payload.edgepulse_quantity, 'EdgePulse quantity') : 0;
   const viboQuantity = invoiceType === 'mixed' ? toQuantity(payload.vibo_quantity, 'Vibo quantity') : 0;
   const edgepulseAmount = roundMoney(edgepulseQuantity * SENSOR_PRICES.edgepulse);
   const viboAmount = roundMoney(viboQuantity * SENSOR_PRICES.vibo);
+  const miscItemBreakup = buildMiscItems(payload.misc_items, invoiceType);
+  const hardwareAmount = roundMoney(edgepulseAmount + viboAmount + miscItemBreakup.amount);
 
   return {
     edgepulse_quantity: edgepulseQuantity,
@@ -60,8 +99,10 @@ const buildSensorBreakup = (payload, invoiceType) => {
     vibo_quantity: viboQuantity,
     vibo_unit_price: SENSOR_PRICES.vibo,
     vibo_amount: viboAmount,
-    hardware_amount: roundMoney(edgepulseAmount + viboAmount),
-    has_sensor_breakup: edgepulseQuantity > 0 || viboQuantity > 0
+    misc_items: miscItemBreakup.misc_items,
+    misc_items_amount: miscItemBreakup.amount,
+    hardware_amount: hardwareAmount,
+    has_hardware_breakup: hardwareAmount > 0
   };
 };
 
@@ -369,7 +410,7 @@ export class InvoiceService {
     let recurringAmount = roundMoney(toNumber(payload.recurring_amount, invoiceType === 'recurring' ? invoiceValue : 0));
     let contractStartDate = toDate(payload.contract_start_date, 'Contract start date');
     let contractEndDate = toDate(payload.contract_end_date, 'Contract end date');
-    const sensorBreakup = buildSensorBreakup(payload, invoiceType);
+    const hardwareBreakup = buildHardwareBreakup(payload, invoiceType);
 
     if (isOneTimeType(invoiceType)) {
       oneTimeAmount = invoiceValue;
@@ -384,12 +425,12 @@ export class InvoiceService {
     }
 
     if (invoiceType === 'mixed') {
-      if (sensorBreakup.has_sensor_breakup) {
-        if (sensorBreakup.hardware_amount >= invoiceValue) {
-          throw Object.assign(new Error('Sensor hardware amount must be less than invoice value'), { status: 400 });
+      if (hardwareBreakup.has_hardware_breakup) {
+        if (hardwareBreakup.hardware_amount >= invoiceValue) {
+          throw Object.assign(new Error('Hardware item amount must be less than invoice value'), { status: 400 });
         }
 
-        oneTimeAmount = sensorBreakup.hardware_amount;
+        oneTimeAmount = hardwareBreakup.hardware_amount;
         recurringAmount = roundMoney(invoiceValue - oneTimeAmount);
       }
 
@@ -428,12 +469,13 @@ export class InvoiceService {
       gst_amount: gstAmount,
       one_time_amount: oneTimeAmount,
       recurring_amount: recurringAmount,
-      edgepulse_quantity: sensorBreakup.edgepulse_quantity,
-      edgepulse_unit_price: sensorBreakup.edgepulse_unit_price,
-      edgepulse_amount: sensorBreakup.edgepulse_amount,
-      vibo_quantity: sensorBreakup.vibo_quantity,
-      vibo_unit_price: sensorBreakup.vibo_unit_price,
-      vibo_amount: sensorBreakup.vibo_amount,
+      edgepulse_quantity: hardwareBreakup.edgepulse_quantity,
+      edgepulse_unit_price: hardwareBreakup.edgepulse_unit_price,
+      edgepulse_amount: hardwareBreakup.edgepulse_amount,
+      vibo_quantity: hardwareBreakup.vibo_quantity,
+      vibo_unit_price: hardwareBreakup.vibo_unit_price,
+      vibo_amount: hardwareBreakup.vibo_amount,
+      misc_items: hardwareBreakup.misc_items,
       contract_start_date: contractStartDate,
       contract_end_date: contractEndDate,
       notes: payload.notes ? String(payload.notes).trim() : undefined,

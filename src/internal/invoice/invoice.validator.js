@@ -24,6 +24,39 @@ const toSensorQuantity = (value, fieldName) => {
   return quantity;
 };
 
+const getMiscItemsAmount = (items = []) => {
+  if (!hasValue(items)) {
+    return 0;
+  }
+
+  if (!Array.isArray(items)) {
+    throw new Error('misc_items must be an array');
+  }
+
+  return items
+    .map((item) => ({
+      item_name: String(item?.item_name || item?.name || '').trim(),
+      quantity: Number(item?.quantity || 0),
+      unit_price: Number(item?.unit_price || 0)
+    }))
+    .filter((item) => item.item_name || item.quantity > 0 || item.unit_price > 0)
+    .reduce((total, item) => {
+      if (!item.item_name) {
+        throw new Error('Misc item name is required');
+      }
+
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        throw new Error(`Quantity for ${item.item_name} must be greater than 0`);
+      }
+
+      if (!Number.isFinite(item.unit_price) || item.unit_price <= 0) {
+        throw new Error(`Unit price for ${item.item_name} must be greater than 0`);
+      }
+
+      return total + (item.quantity * item.unit_price);
+    }, 0);
+};
+
 const validateInvoiceAmounts = (payload) => {
   const invoiceType = payload.invoice_type;
   const invoiceValue = Number(payload.invoice_value);
@@ -32,7 +65,9 @@ const validateInvoiceAmounts = (payload) => {
   const edgepulseQuantity = toSensorQuantity(payload.edgepulse_quantity, 'edgepulse_quantity');
   const viboQuantity = toSensorQuantity(payload.vibo_quantity, 'vibo_quantity');
   const sensorHardwareAmount = (edgepulseQuantity * sensorPrices.edgepulse) + (viboQuantity * sensorPrices.vibo);
-  const hasSensorBreakup = edgepulseQuantity > 0 || viboQuantity > 0;
+  const miscItemsAmount = getMiscItemsAmount(payload.misc_items);
+  const hardwareItemAmount = sensorHardwareAmount + miscItemsAmount;
+  const hasHardwareBreakup = hardwareItemAmount > 0;
 
   if (!INVOICE_TYPES.includes(invoiceType)) {
     throw new Error('Invalid invoice type');
@@ -43,9 +78,9 @@ const validateInvoiceAmounts = (payload) => {
   }
 
   if (invoiceType === 'mixed') {
-    if (hasSensorBreakup) {
-      if (sensorHardwareAmount >= invoiceValue) {
-        throw new Error('Sensor hardware amount must be less than invoice value');
+    if (hasHardwareBreakup) {
+      if (hardwareItemAmount >= invoiceValue) {
+        throw new Error('Hardware item amount must be less than invoice value');
       }
 
       return true;
@@ -154,6 +189,10 @@ const baseInvoiceValidators = [
   body('recurring_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Recurring amount must be 0 or greater'),
   body('edgepulse_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('EdgePulse quantity must be a whole number 0 or greater'),
   body('vibo_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('Vibo quantity must be a whole number 0 or greater'),
+  body('misc_items').optional({ nullable: true }).isArray({ max: 50 }).withMessage('Misc items must be an array'),
+  body('misc_items.*.item_name').optional({ nullable: true, checkFalsy: true }).trim().isString(),
+  body('misc_items.*.quantity').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Misc item quantity must be 0 or greater'),
+  body('misc_items.*.unit_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Misc item unit price must be 0 or greater'),
   body('contract_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract start date must be valid'),
   body('contract_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract end date must be valid'),
   body('notes').optional({ nullable: true, checkFalsy: true }).trim().isString()
@@ -186,6 +225,10 @@ export const updateInvoiceValidator = [
   body('recurring_amount').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Recurring amount must be 0 or greater'),
   body('edgepulse_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('EdgePulse quantity must be a whole number 0 or greater'),
   body('vibo_quantity').optional({ nullable: true, checkFalsy: true }).isInt({ min: 0 }).withMessage('Vibo quantity must be a whole number 0 or greater'),
+  body('misc_items').optional({ nullable: true }).isArray({ max: 50 }).withMessage('Misc items must be an array'),
+  body('misc_items.*.item_name').optional({ nullable: true, checkFalsy: true }).trim().isString(),
+  body('misc_items.*.quantity').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Misc item quantity must be 0 or greater'),
+  body('misc_items.*.unit_price').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Misc item unit price must be 0 or greater'),
   body('contract_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract start date must be valid'),
   body('contract_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Contract end date must be valid'),
   body('notes').optional({ nullable: true, checkFalsy: true }).trim().isString()
