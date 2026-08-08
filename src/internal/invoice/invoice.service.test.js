@@ -41,7 +41,7 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(rows[0].amount, 25000);
   });
 
-  it('splits recurring invoices across inclusive contract months and adjusts rounding in the last month', () => {
+  it('tracks subscription invoices only in the invoice month while keeping contract dates as reference', () => {
     const invoice = {
       _id: new Types.ObjectId(),
       customer_name: 'ACME Industries',
@@ -57,12 +57,13 @@ describe('InvoiceService schedule generation', () => {
 
     const rows = service.buildScheduleRows(invoice, new Types.ObjectId());
 
-    assert.deepEqual(rows.map((row) => row.revenue_month), ['2026-01', '2026-02', '2026-03']);
-    assert.deepEqual(rows.map((row) => row.amount), [33333.33, 33333.33, 33333.34]);
-    assert.equal(rows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), 100000);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].revenue_month, '2026-04');
+    assert.equal(rows[0].revenue_type, 'recurring');
+    assert.equal(rows[0].amount, 100000);
   });
 
-  it('treats standard 1/3/5-year contracts as 12/36/60 monthly revenue rows', () => {
+  it('treats standard 1/3/5-year hardware plus software contracts as 12/36/60 monthly software rows', () => {
     const tenures = [
       { months: 12, endDate: '2027-08-07T00:00:00.000Z', lastMonth: '2027-07' },
       { months: 36, endDate: '2029-08-07T00:00:00.000Z', lastMonth: '2029-07' },
@@ -76,20 +77,22 @@ describe('InvoiceService schedule generation', () => {
         invoice_no: `INV-${tenure.months}`,
         invoice_date: new Date('2026-08-08T00:00:00.000Z'),
         invoice_month: '2026-08',
-        invoice_type: 'recurring',
-        one_time_amount: 0,
+        invoice_type: 'mixed',
+        one_time_amount: 5000,
         recurring_amount: tenure.months * 10000,
+        invoice_value: (tenure.months * 10000) + 5000,
         contract_start_date: new Date('2026-08-08T00:00:00.000Z'),
         contract_end_date: new Date(tenure.endDate)
       };
 
       const rows = service.buildScheduleRows(invoice, new Types.ObjectId());
+      const recurringRows = rows.filter((row) => row.revenue_type === 'recurring');
 
-      assert.equal(rows.length, tenure.months);
-      assert.equal(rows[0].revenue_month, '2026-08');
-      assert.equal(rows[tenure.months - 1].revenue_month, tenure.lastMonth);
-      assert.equal(rows[0].amount, 10000);
-      assert.equal(rows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), tenure.months * 10000);
+      assert.equal(recurringRows.length, tenure.months);
+      assert.equal(recurringRows[0].revenue_month, '2026-08');
+      assert.equal(recurringRows[tenure.months - 1].revenue_month, tenure.lastMonth);
+      assert.equal(recurringRows[0].amount, 10000);
+      assert.equal(recurringRows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), tenure.months * 10000);
     }
   });
 
@@ -134,7 +137,7 @@ describe('InvoiceService schedule generation', () => {
         invoice_no: 'INV-APR',
         invoice_date: new Date('2026-04-10T00:00:00.000Z'),
         invoice_month: '2026-04',
-        invoice_type: 'recurring',
+        invoice_type: 'mixed',
         revenue_month: reportMonth,
         revenue_date: new Date('2026-08-31T00:00:00.000Z'),
         revenue_type: 'recurring',
@@ -188,6 +191,59 @@ describe('InvoiceService schedule generation', () => {
         ['recurring_previous_invoice', 10000]
       ].sort()
     );
+  });
+
+  it('ignores legacy subscription schedule rows outside the invoice month in reports', () => {
+    const reportMonth = '2026-09';
+    const invoiceId = new Types.ObjectId();
+
+    const report = service.buildMonthlyReport([
+      {
+        _id: new Types.ObjectId(),
+        invoice_id: invoiceId,
+        customer_name: 'ACME Industries',
+        invoice_no: 'SUB-AUG',
+        invoice_date: new Date('2026-08-08T00:00:00.000Z'),
+        invoice_month: '2026-08',
+        invoice_type: 'recurring',
+        revenue_month: reportMonth,
+        revenue_date: new Date('2026-09-30T00:00:00.000Z'),
+        revenue_type: 'recurring',
+        amount: 10000
+      }
+    ], reportMonth);
+
+    assert.equal(report.summary.row_count, 0);
+    assert.equal(report.summary.recurring_revenue, 0);
+    assert.equal(report.summary.total_revenue, 0);
+    assert.equal(report.rows.length, 0);
+  });
+
+  it('uses full invoice value for subscription KPI totals when a legacy schedule row has a split amount', () => {
+    const reportMonth = '2026-08';
+    const invoiceId = new Types.ObjectId();
+
+    const report = service.buildMonthlyReport([
+      {
+        _id: new Types.ObjectId(),
+        invoice_id: invoiceId,
+        customer_name: 'Subscription Customer',
+        invoice_no: 'SUB-AUG',
+        invoice_date: new Date('2026-08-08T00:00:00.000Z'),
+        invoice_month: reportMonth,
+        invoice_type: 'recurring',
+        invoice_value: 50000,
+        revenue_month: reportMonth,
+        revenue_date: new Date('2026-08-31T00:00:00.000Z'),
+        revenue_type: 'recurring',
+        amount: 4166.67
+      }
+    ], reportMonth);
+
+    assert.equal(report.summary.recurring_current_month_revenue, 50000);
+    assert.equal(report.summary.recurring_revenue, 50000);
+    assert.equal(report.summary.total_revenue, 50000);
+    assert.equal(report.rows[0].amount, 50000);
   });
 
   it('bulk import keeps processing rows and reports failed rows separately', async () => {

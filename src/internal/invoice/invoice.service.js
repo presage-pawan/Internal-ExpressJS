@@ -10,6 +10,14 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$
 
 const isRecurringType = (invoiceType) => invoiceType === 'recurring' || invoiceType === 'mixed';
 
+const isReportableSchedule = (schedule) => {
+  if (schedule.invoice_type !== 'recurring') {
+    return true;
+  }
+
+  return schedule.revenue_month === schedule.invoice_month;
+};
+
 const toNumber = (value, defaultValue = 0) => {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
@@ -19,6 +27,17 @@ const toNumber = (value, defaultValue = 0) => {
 };
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(MONEY_DECIMALS));
+
+const normalizeSubscriptionScheduleAmount = (schedule) => {
+  if (schedule.invoice_type !== 'recurring' || schedule.revenue_month !== schedule.invoice_month) {
+    return schedule;
+  }
+
+  return {
+    ...schedule,
+    amount: roundMoney(schedule.recurring_amount || schedule.invoice_value || schedule.amount)
+  };
+};
 
 const toDate = (value, fieldName) => {
   if (!value) {
@@ -137,7 +156,8 @@ export class InvoiceService {
       status: 'scheduled'
     }).sort({ revenue_month: 1, revenue_type: 1 }).lean();
 
-    return this.mapInvoiceWithSchedules(invoice, schedules);
+    const reportableSchedules = await this.normalizeSubscriptionScheduleAmounts(schedules.filter(isReportableSchedule));
+    return this.mapInvoiceWithSchedules(invoice, reportableSchedules);
   }
 
   async update(id, payload, userId) {
@@ -178,11 +198,13 @@ export class InvoiceService {
   }
 
   async getSchedules(invoiceId) {
-    return this.scheduleModel.find({
+    const schedules = await this.scheduleModel.find({
       invoice_id: validateObjectId(invoiceId),
       visible: true,
       status: 'scheduled'
     }).sort({ revenue_month: 1, revenue_type: 1 }).lean();
+
+    return this.normalizeSubscriptionScheduleAmounts(schedules.filter(isReportableSchedule));
   }
 
   async getMonthlyReport(month) {
@@ -196,7 +218,8 @@ export class InvoiceService {
       status: 'scheduled'
     }).sort({ customer_name: 1, invoice_no: 1, revenue_type: 1 }).lean();
 
-    return this.buildMonthlyReport(schedules, month);
+    const normalizedSchedules = await this.normalizeSubscriptionScheduleAmounts(schedules);
+    return this.buildMonthlyReport(normalizedSchedules, month);
   }
 
   async regenerateSchedules(invoice, userId) {
@@ -215,6 +238,44 @@ export class InvoiceService {
       { invoice_id: invoiceId, visible: true },
       { $set: { visible: false, status: 'cancelled', updatedBy: userId } }
     );
+  }
+
+  async normalizeSubscriptionScheduleAmounts(schedules = []) {
+    const invoiceIdMap = new Map();
+
+    schedules.forEach((schedule) => {
+      if (schedule?.invoice_type === 'recurring' && schedule?.invoice_id) {
+        invoiceIdMap.set(String(schedule.invoice_id), schedule.invoice_id);
+      }
+    });
+
+    const invoiceIds = Array.from(invoiceIdMap.values());
+    if (!invoiceIds.length) {
+      return schedules;
+    }
+
+    const invoices = await this.invoiceModel.find({
+      _id: { $in: invoiceIds },
+      visible: true
+    }).select('_id invoice_value recurring_amount').lean();
+    const invoiceById = new Map(invoices.map((invoice) => [String(invoice._id), invoice]));
+
+    return schedules.map((schedule) => {
+      if (schedule?.invoice_type !== 'recurring') {
+        return schedule;
+      }
+
+      const invoice = invoiceById.get(String(schedule.invoice_id));
+      if (!invoice) {
+        return normalizeSubscriptionScheduleAmount(schedule);
+      }
+
+      return normalizeSubscriptionScheduleAmount({
+        ...schedule,
+        invoice_value: invoice.invoice_value,
+        recurring_amount: invoice.recurring_amount
+      });
+    });
   }
 
   buildListFilter(query = {}) {
@@ -357,7 +418,16 @@ export class InvoiceService {
       }));
     }
 
-    if (isRecurringType(invoiceObject.invoice_type)) {
+    if (invoiceObject.invoice_type === 'recurring') {
+      rows.push(this.buildScheduleRow(invoiceObject, {
+        revenueDate: monthEnd(invoiceObject.invoice_date),
+        revenueType: 'recurring',
+        amount: invoiceObject.recurring_amount || invoiceObject.invoice_value,
+        userId
+      }));
+    }
+
+    if (invoiceObject.invoice_type === 'mixed') {
       const months = monthsInclusive(invoiceObject.contract_start_date, invoiceObject.contract_end_date);
       const monthlyAmount = roundMoney(invoiceObject.recurring_amount / months);
       let scheduledTotal = 0;
@@ -404,6 +474,9 @@ export class InvoiceService {
   }
 
   buildMonthlyReport(schedules = [], month) {
+    const reportableSchedules = schedules
+      .filter(isReportableSchedule)
+      .map(normalizeSubscriptionScheduleAmount);
     const summary = {
       selected_month: month,
       one_time_revenue: 0,
@@ -412,14 +485,14 @@ export class InvoiceService {
       recurring_future_invoice_revenue: 0,
       recurring_revenue: 0,
       total_revenue: 0,
-      row_count: schedules.length
+      row_count: reportableSchedules.length
     };
 
     const customerMap = new Map();
     const invoiceMap = new Map();
     const revenueTypeMap = new Map();
 
-    const detail = schedules.map((schedule) => {
+    const detail = reportableSchedules.map((schedule) => {
       const amount = roundMoney(schedule.amount);
       const sourceType = this.getReportSourceType(schedule, month);
       const normalized = {
