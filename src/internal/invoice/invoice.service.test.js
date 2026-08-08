@@ -47,6 +47,37 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(rows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), 100000);
   });
 
+  it('treats standard 1/3/5-year contracts as 12/36/60 monthly revenue rows', () => {
+    const tenures = [
+      { months: 12, endDate: '2027-08-07T00:00:00.000Z', lastMonth: '2027-07' },
+      { months: 36, endDate: '2029-08-07T00:00:00.000Z', lastMonth: '2029-07' },
+      { months: 60, endDate: '2031-08-07T00:00:00.000Z', lastMonth: '2031-07' }
+    ];
+
+    for (const tenure of tenures) {
+      const invoice = {
+        _id: new Types.ObjectId(),
+        customer_name: 'ACME Industries',
+        invoice_no: `INV-${tenure.months}`,
+        invoice_date: new Date('2026-08-08T00:00:00.000Z'),
+        invoice_month: '2026-08',
+        invoice_type: 'recurring',
+        one_time_amount: 0,
+        recurring_amount: tenure.months * 10000,
+        contract_start_date: new Date('2026-08-08T00:00:00.000Z'),
+        contract_end_date: new Date(tenure.endDate)
+      };
+
+      const rows = service.buildScheduleRows(invoice, new Types.ObjectId());
+
+      assert.equal(rows.length, tenure.months);
+      assert.equal(rows[0].revenue_month, '2026-08');
+      assert.equal(rows[tenure.months - 1].revenue_month, tenure.lastMonth);
+      assert.equal(rows[0].amount, 10000);
+      assert.equal(rows.reduce((total, row) => Number((total + row.amount).toFixed(2)), 0), tenure.months * 10000);
+    }
+  });
+
   it('creates both current-month one-time and monthly recurring rows for mixed invoices', () => {
     const invoice = {
       _id: new Types.ObjectId(),

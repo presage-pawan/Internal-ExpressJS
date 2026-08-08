@@ -54,7 +54,8 @@ const monthsInclusive = (startDate, endDate) => {
     throw Object.assign(new Error('Contract end date must be on or after contract start date'), { status: 400 });
   }
 
-  return diff + 1;
+  const anniversaryAdjustedMonths = diff + 1 - (diff > 0 && endDate.getUTCDate() < startDate.getUTCDate() ? 1 : 0);
+  return Math.max(anniversaryAdjustedMonths, 1);
 };
 
 export class InvoiceService {
