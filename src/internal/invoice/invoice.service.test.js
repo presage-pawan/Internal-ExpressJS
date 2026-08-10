@@ -20,6 +20,22 @@ class BulkImportTestInvoiceService extends InvoiceService {
   }
 }
 
+class SoftDeleteTestInvoiceService extends InvoiceService {
+  constructor(invoiceModel, scheduleModel) {
+    super('production');
+    this.mockInvoiceModel = invoiceModel;
+    this.mockScheduleModel = scheduleModel;
+  }
+
+  get invoiceModel() {
+    return this.mockInvoiceModel;
+  }
+
+  get scheduleModel() {
+    return this.mockScheduleModel;
+  }
+}
+
 describe('InvoiceService schedule generation', () => {
   it('tracks one-time invoices only in the invoice month', () => {
     const invoice = {
@@ -464,5 +480,45 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(result.failed_count, 1);
     assert.deepEqual(result.results.map((row) => row.status), ['created', 'failed', 'created']);
     assert.equal(result.results[1].message, 'Simulated duplicate invoice');
+  });
+
+  it('soft deletes invoices and stores delete audit fields', async () => {
+    const invoiceId = new Types.ObjectId();
+    const userId = new Types.ObjectId();
+    let invoiceUpdate = null;
+    let scheduleUpdate = null;
+
+    const deleteService = new SoftDeleteTestInvoiceService(
+      {
+        async findOneAndUpdate(filter, update) {
+          assert.deepEqual(filter, { _id: invoiceId, visible: true });
+          invoiceUpdate = update.$set;
+          return { _id: invoiceId, ...invoiceUpdate };
+        }
+      },
+      {
+        async updateMany(filter, update) {
+          assert.deepEqual(filter, { invoice_id: invoiceId, visible: true });
+          scheduleUpdate = update.$set;
+          return { modifiedCount: 2 };
+        }
+      }
+    );
+
+    const deletedInvoice = await deleteService.delete(invoiceId, userId);
+
+    assert.equal(deletedInvoice.visible, false);
+    assert.equal(deletedInvoice.status, 'cancelled');
+    assert.equal(String(deletedInvoice.updatedBy), String(userId));
+    assert.equal(String(deletedInvoice.deletedBy), String(userId));
+    assert.ok(deletedInvoice.deletedAt instanceof Date);
+    assert.equal(invoiceUpdate.visible, false);
+    assert.equal(invoiceUpdate.status, 'cancelled');
+    assert.equal(String(invoiceUpdate.deletedBy), String(userId));
+    assert.ok(invoiceUpdate.deletedAt instanceof Date);
+    assert.equal(scheduleUpdate.visible, false);
+    assert.equal(scheduleUpdate.status, 'cancelled');
+    assert.equal(String(scheduleUpdate.deletedBy), String(userId));
+    assert.equal(scheduleUpdate.deletedAt, invoiceUpdate.deletedAt);
   });
 });

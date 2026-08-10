@@ -263,9 +263,18 @@ export class InvoiceService {
 
   async delete(id, userId) {
     const invoiceId = validateObjectId(id);
+    const deletedAt = new Date();
     const invoice = await this.invoiceModel.findOneAndUpdate(
       { _id: invoiceId, visible: true },
-      { $set: { visible: false, status: 'cancelled', updatedBy: userId } },
+      {
+        $set: {
+          visible: false,
+          status: 'cancelled',
+          updatedBy: userId,
+          deletedBy: userId,
+          deletedAt
+        }
+      },
       { new: true }
     );
 
@@ -273,7 +282,7 @@ export class InvoiceService {
       return null;
     }
 
-    await this.cancelSchedules(invoiceId, userId);
+    await this.cancelSchedules(invoiceId, userId, { deletedAt });
     return invoice;
   }
 
@@ -313,10 +322,21 @@ export class InvoiceService {
     return this.scheduleModel.insertMany(rows);
   }
 
-  async cancelSchedules(invoiceId, userId) {
+  async cancelSchedules(invoiceId, userId, options = {}) {
+    const setPayload = {
+      visible: false,
+      status: 'cancelled',
+      updatedBy: userId
+    };
+
+    if (options.deletedAt) {
+      setPayload.deletedBy = userId;
+      setPayload.deletedAt = options.deletedAt;
+    }
+
     return this.scheduleModel.updateMany(
       { invoice_id: invoiceId, visible: true },
-      { $set: { visible: false, status: 'cancelled', updatedBy: userId } }
+      { $set: setPayload }
     );
   }
 

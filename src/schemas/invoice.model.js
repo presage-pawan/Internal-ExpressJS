@@ -48,7 +48,9 @@ const InvoiceSchema = new Schema(
     status: { type: String, enum: INVOICE_STATUSES, default: 'active' },
     visible: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId },
-    updatedBy: { type: Schema.Types.ObjectId }
+    updatedBy: { type: Schema.Types.ObjectId },
+    deletedBy: { type: Schema.Types.ObjectId },
+    deletedAt: { type: Date }
   },
   {
     collection: 'invoices',

@@ -24,7 +24,9 @@ const InvoiceRevenueScheduleSchema = new Schema(
     status: { type: String, enum: REVENUE_SCHEDULE_STATUSES, default: 'scheduled' },
     visible: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId },
-    updatedBy: { type: Schema.Types.ObjectId }
+    updatedBy: { type: Schema.Types.ObjectId },
+    deletedBy: { type: Schema.Types.ObjectId },
+    deletedAt: { type: Date }
   },
   {
     collection: 'invoice_revenue_schedules',
