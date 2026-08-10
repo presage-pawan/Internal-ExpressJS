@@ -24,6 +24,7 @@ const InvoiceSchema = new Schema(
     exchange_rate: { type: Number, default: 1, min: 0 },
     invoice_value: { type: Number, required: true, min: 0 },
     taxable_value: { type: Number, min: 0 },
+    gst_percentage: { type: Number, min: 0, default: 0 },
     gst_amount: { type: Number, min: 0, default: 0 },
 
     one_time_amount: { type: Number, min: 0, default: 0 },

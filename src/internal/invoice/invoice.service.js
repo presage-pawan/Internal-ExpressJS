@@ -47,8 +47,8 @@ const toQuantity = (value, fieldName) => {
   return numericValue;
 };
 
-const buildMiscItems = (items = [], invoiceType) => {
-  if (invoiceType !== 'mixed' || !Array.isArray(items)) {
+const buildMiscItems = (items = []) => {
+  if (!Array.isArray(items)) {
     return { misc_items: [], amount: 0 };
   }
 
@@ -89,8 +89,10 @@ const buildHardwareBreakup = (payload, invoiceType) => {
   const viboQuantity = invoiceType === 'mixed' ? toQuantity(payload.vibo_quantity, 'Vibo quantity') : 0;
   const edgepulseAmount = roundMoney(edgepulseQuantity * SENSOR_PRICES.edgepulse);
   const viboAmount = roundMoney(viboQuantity * SENSOR_PRICES.vibo);
-  const miscItemBreakup = buildMiscItems(payload.misc_items, invoiceType);
-  const hardwareAmount = roundMoney(edgepulseAmount + viboAmount + miscItemBreakup.amount);
+  const miscItemBreakup = buildMiscItems(payload.misc_items);
+  const hardwareAmount = invoiceType === 'mixed'
+    ? roundMoney(edgepulseAmount + viboAmount + miscItemBreakup.amount)
+    : 0;
 
   return {
     edgepulse_quantity: edgepulseQuantity,
@@ -102,7 +104,7 @@ const buildHardwareBreakup = (payload, invoiceType) => {
     misc_items: miscItemBreakup.misc_items,
     misc_items_amount: miscItemBreakup.amount,
     hardware_amount: hardwareAmount,
-    has_hardware_breakup: hardwareAmount > 0
+    has_hardware_breakup: invoiceType === 'mixed' && hardwareAmount > 0
   };
 };
 
@@ -389,10 +391,13 @@ export class InvoiceService {
     const invoiceType = payload.invoice_type;
     const invoiceValue = roundMoney(toNumber(payload.invoice_value));
     const exchangeRate = toNumber(payload.exchange_rate, 1);
-    const gstAmount = roundMoney(toNumber(payload.gst_amount, 0));
+    const gstPercentage = roundMoney(toNumber(payload.gst_percentage, 0));
     const taxableValue = payload.taxable_value === undefined || payload.taxable_value === null || payload.taxable_value === ''
       ? invoiceValue
       : roundMoney(toNumber(payload.taxable_value));
+    const gstAmount = payload.gst_amount === undefined || payload.gst_amount === null || payload.gst_amount === ''
+      ? roundMoney(taxableValue * (gstPercentage / 100))
+      : roundMoney(toNumber(payload.gst_amount, 0));
 
     if (!invoiceDate) {
       throw Object.assign(new Error('Invoice date is required'), { status: 400 });
@@ -466,6 +471,7 @@ export class InvoiceService {
       exchange_rate: exchangeRate,
       invoice_value: invoiceValue,
       taxable_value: taxableValue,
+      gst_percentage: gstPercentage,
       gst_amount: gstAmount,
       one_time_amount: oneTimeAmount,
       recurring_amount: recurringAmount,

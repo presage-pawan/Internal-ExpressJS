@@ -69,6 +69,35 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(rows[0].amount, 7500);
   });
 
+  it('stores item rows and GST details for non-mixed invoices', () => {
+    const payload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-OTHER-GST',
+      invoice_date: '2026-08-12',
+      invoice_type: 'other',
+      taxable_value: 10000,
+      gst_percentage: 18,
+      invoice_value: 11800,
+      misc_items: [
+        { item_name: 'Router', quantity: 2, unit_price: 2500 },
+        { item_name: 'SIM', quantity: 10, unit_price: 500 }
+      ]
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(payload.one_time_amount, 11800);
+    assert.equal(payload.recurring_amount, 0);
+    assert.equal(payload.taxable_value, 10000);
+    assert.equal(payload.gst_percentage, 18);
+    assert.equal(payload.gst_amount, 1800);
+    assert.deepEqual(
+      payload.misc_items.map((item) => [item.item_name, item.quantity, item.unit_price, item.amount]),
+      [
+        ['Router', 2, 2500, 5000],
+        ['SIM', 10, 500, 5000]
+      ]
+    );
+  });
+
   it('tracks subscription invoices only in the invoice month while keeping contract dates as reference', () => {
     const invoice = {
       _id: new Types.ObjectId(),
