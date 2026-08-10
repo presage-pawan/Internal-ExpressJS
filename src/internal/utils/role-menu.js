@@ -91,6 +91,9 @@ export class RoleManager {
       case "employee": {
         return this.EMPLOYEE_ROLES;
       }
+      case "worker": {
+        return this.EMPLOYEE_ROLES;
+      }
       case "manager": {
         return this.MANAGER_ROLES;
       }

@@ -1,7 +1,7 @@
 import { Schema } from 'mongoose';
 
 export const STATUS = ['active', 'inactive'];
-export const ROLE = ['admin', 'manager', 'employee'];
+export const ROLE = ['admin', 'manager', 'employee', 'worker'];
 
 const UserSchema = new Schema(
   {
