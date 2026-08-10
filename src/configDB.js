@@ -69,3 +69,12 @@ export const REQUEST_LIMITS = {
   loginWindowMs: 15 * 60 * 1000,
   loginMax: Number(process.env.LOGIN_RATE_LIMIT_MAX || 20)
 };
+
+export const MAIL_DETAILS = {
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+  user: process.env.SMTP_USER,
+  password: process.env.SMTP_PASSWORD,
+  from: process.env.SMTP_FROM || process.env.SMTP_USER
+};
