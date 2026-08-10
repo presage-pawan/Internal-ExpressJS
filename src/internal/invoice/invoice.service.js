@@ -430,21 +430,23 @@ export class InvoiceService {
     }
 
     if (invoiceType === 'mixed') {
+      const splitBaseAmount = taxableValue > 0 ? taxableValue : invoiceValue;
+
       if (hardwareBreakup.has_hardware_breakup) {
-        if (hardwareBreakup.hardware_amount >= invoiceValue) {
-          throw Object.assign(new Error('Hardware item amount must be less than invoice value'), { status: 400 });
+        if (hardwareBreakup.hardware_amount > splitBaseAmount) {
+          throw Object.assign(new Error('Hardware item amount must not exceed taxable value'), { status: 400 });
         }
 
         oneTimeAmount = hardwareBreakup.hardware_amount;
-        recurringAmount = roundMoney(invoiceValue - oneTimeAmount);
+        recurringAmount = roundMoney(splitBaseAmount - oneTimeAmount);
       }
 
-      if (oneTimeAmount <= 0 || recurringAmount <= 0) {
-        throw Object.assign(new Error('Mixed invoice requires one-time and recurring amounts greater than 0'), { status: 400 });
+      if (oneTimeAmount <= 0 || recurringAmount < 0) {
+        throw Object.assign(new Error('Mixed invoice requires one-time amount greater than 0 and software amount 0 or greater'), { status: 400 });
       }
 
-      if (Math.abs((oneTimeAmount + recurringAmount) - invoiceValue) > 0.01) {
-        throw Object.assign(new Error('One-time amount and recurring amount must equal invoice value'), { status: 400 });
+      if (Math.abs((oneTimeAmount + recurringAmount) - splitBaseAmount) > 0.01) {
+        throw Object.assign(new Error('One-time amount and recurring amount must equal taxable value'), { status: 400 });
       }
     }
 

@@ -60,6 +60,7 @@ const getMiscItemsAmount = (items = []) => {
 const validateInvoiceAmounts = (payload) => {
   const invoiceType = payload.invoice_type;
   const invoiceValue = Number(payload.invoice_value);
+  const taxableValue = hasValue(payload.taxable_value) ? Number(payload.taxable_value) : invoiceValue;
   const oneTimeAmount = Number(payload.one_time_amount || 0);
   const recurringAmount = Number(payload.recurring_amount || 0);
   const edgepulseQuantity = toSensorQuantity(payload.edgepulse_quantity, 'edgepulse_quantity');
@@ -79,8 +80,8 @@ const validateInvoiceAmounts = (payload) => {
 
   if (invoiceType === 'mixed') {
     if (hasHardwareBreakup) {
-      if (hardwareItemAmount >= invoiceValue) {
-        throw new Error('Hardware item amount must be less than invoice value');
+      if (hardwareItemAmount > taxableValue) {
+        throw new Error('Hardware item amount must not exceed taxable value');
       }
 
       return true;
@@ -90,12 +91,12 @@ const validateInvoiceAmounts = (payload) => {
       throw new Error('Mixed invoice requires one_time_amount and recurring_amount');
     }
 
-    if (oneTimeAmount <= 0 || recurringAmount <= 0) {
-      throw new Error('Mixed invoice amounts must be greater than 0');
+    if (oneTimeAmount <= 0 || recurringAmount < 0) {
+      throw new Error('Mixed invoice one-time amount must be greater than 0 and software amount must be 0 or greater');
     }
 
-    if (Math.abs((oneTimeAmount + recurringAmount) - invoiceValue) > 0.01) {
-      throw new Error('One-time amount and recurring amount must equal invoice value');
+    if (Math.abs((oneTimeAmount + recurringAmount) - taxableValue) > 0.01) {
+      throw new Error('One-time amount and recurring amount must equal taxable value');
     }
   }
 

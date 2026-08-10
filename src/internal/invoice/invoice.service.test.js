@@ -243,6 +243,33 @@ describe('InvoiceService schedule generation', () => {
     );
   });
 
+  it('keeps GST separate when splitting mixed invoice hardware and software', () => {
+    const invoicePayload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-MIXED-GST',
+      invoice_date: '2026-08-10',
+      invoice_type: 'mixed',
+      taxable_value: 100000,
+      gst_percentage: 18,
+      invoice_value: 118000,
+      edgepulse_quantity: 1,
+      vibo_quantity: 1,
+      misc_items: [
+        { item_name: 'Router', quantity: 1, unit_price: 2500 }
+      ],
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(invoicePayload.edgepulse_amount, 5500);
+    assert.equal(invoicePayload.vibo_amount, 7000);
+    assert.equal(invoicePayload.one_time_amount, 15000);
+    assert.equal(invoicePayload.recurring_amount, 85000);
+    assert.equal(invoicePayload.taxable_value, 100000);
+    assert.equal(invoicePayload.gst_amount, 18000);
+    assert.equal(invoicePayload.invoice_value, 118000);
+  });
+
   it('supports mixed invoices with miscellaneous hardware items and no sensors', () => {
     const invoicePayload = service.buildInvoicePayload({
       customer_name: 'ACME Industries',
@@ -264,19 +291,39 @@ describe('InvoiceService schedule generation', () => {
     assert.equal(invoicePayload.misc_items[0].amount, 8000);
   });
 
-  it('rejects mixed invoice hardware item totals that leave no software amount', () => {
+  it('allows mixed invoice hardware totals to equal taxable value when software amount is zero', () => {
+    const invoicePayload = service.buildInvoicePayload({
+      customer_name: 'ACME Industries',
+      invoice_no: 'INV-SENSOR-NO-SOFT',
+      invoice_date: '2026-08-10',
+      invoice_type: 'mixed',
+      taxable_value: 11000,
+      gst_percentage: 18,
+      invoice_value: 12980,
+      edgepulse_quantity: 2,
+      contract_start_date: '2026-08-01',
+      contract_end_date: '2027-07-31'
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(invoicePayload.one_time_amount, 11000);
+    assert.equal(invoicePayload.recurring_amount, 0);
+    assert.equal(invoicePayload.gst_amount, 1980);
+    assert.equal(invoicePayload.invoice_value, 12980);
+  });
+
+  it('rejects mixed invoice hardware item totals above taxable value', () => {
     assert.throws(
       () => service.buildInvoicePayload({
         customer_name: 'ACME Industries',
         invoice_no: 'INV-SENSOR-BAD',
         invoice_date: '2026-08-10',
         invoice_type: 'mixed',
-        invoice_value: 11000,
+        invoice_value: 10000,
         edgepulse_quantity: 2,
         contract_start_date: '2026-08-01',
         contract_end_date: '2027-07-31'
       }, { userId: new Types.ObjectId(), isCreate: true }),
-      /Hardware item amount must be less than invoice value/
+      /Hardware item amount must not exceed taxable value/
     );
   });
 
