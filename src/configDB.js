@@ -42,7 +42,8 @@ const DEFAULT_CORS_ORIGINS = [
   'http://localhost:4200',
   'http://localhost:4300',
   'https://app.presageinsights.ai',
-  'https://new.presageinsights.ai'
+  'https://new.presageinsights.ai',
+  'https://www.presageinsights.ai'
 ];
 
 const parseList = (value) => {
