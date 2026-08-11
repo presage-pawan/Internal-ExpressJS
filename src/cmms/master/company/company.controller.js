@@ -21,11 +21,7 @@ export class CompanyController {
       visible: true
     });
     const roleMenu = roleMenus?.[0]?.roleMenu || {};
-    const canEdit = Boolean(
-      roleMenu.account_management?.edit ||
-      roleMenu.account_permissions?.edit ||
-      roleMenu.user_management?.edit
-    );
+    const canEdit = Boolean(roleMenu.account_management?.edit);
 
     if (!canEdit) {
       throw Object.assign(new Error('Forbidden'), { status: 403 });

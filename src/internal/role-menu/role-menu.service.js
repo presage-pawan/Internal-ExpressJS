@@ -5,24 +5,34 @@ import { RoleManager } from '../utils/role-menu.js';
 export class RoleMenuService {
 
   constructor(dbType = 'production') {
-    this.dbType = dbType;
+    if (dbType && typeof dbType === 'object') {
+      this.connectionOverride = dbType;
+      this.dbType = 'production';
+    } else {
+      this.dbType = dbType;
+    }
+  }
+
+  get connection() {
+    return this.connectionOverride || getConnection(this.dbType, 'website');
   }
 
   get RoleMenuModel() {
-    const connection = getConnection(this.dbType, 'website');
-    return InternalUserRoleMenuModel(connection);
+    return InternalUserRoleMenuModel(this.connection);
   }
 
   async getRoles(filter = {}) {
-    return this.RoleMenuModel.find(filter)
+    const roles = await this.RoleMenuModel.find(filter);
+    return Promise.all(roles.map(role => this.ensureDefaultRoleMenu(role)));
   }
 
   async getRoleById(id) {
-    return this.RoleMenuModel.findById(id)
+    const role = await this.RoleMenuModel.findById(id);
+    return role ? this.ensureDefaultRoleMenu(role) : role;
   }
 
   async createRole(user_role, userId) {
-    const roleMenu = await RoleManager.getRoleMenuData(user_role);
+    const roleMenu = await this.getDefaultRoleMenu(user_role);
     const payload = {
       roleName: user_role,
       roleMenu: roleMenu,
@@ -42,5 +52,28 @@ export class RoleMenuService {
 
   async deleteRole(id, updatedBy) {
     return this.RoleMenuModel.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
+  }
+
+  async getDefaultRoleMenu(roleName) {
+    return JSON.parse(JSON.stringify(await RoleManager.getRoleMenuData(roleName)));
+  }
+
+  async ensureDefaultRoleMenu(role) {
+    const defaultRoleMenu = await this.getDefaultRoleMenu(role.roleName);
+    const roleMenu = { ...(role.roleMenu || {}) };
+    let changed = false;
+
+    Object.entries(defaultRoleMenu).forEach(([key, value]) => {
+      if (!Object.prototype.hasOwnProperty.call(roleMenu, key)) {
+        roleMenu[key] = value;
+        changed = true;
+      }
+    });
+
+    if (!changed) {
+      return role;
+    }
+
+    return this.RoleMenuModel.findByIdAndUpdate(role._id, { roleMenu }, { new: true, runValidators: true });
   }
 }

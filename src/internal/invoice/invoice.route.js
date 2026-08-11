@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validate } from '../../middlewares/validate.js';
 import { InvoiceController } from './invoice.controller.js';
+import { RoleMenuService } from '../role-menu/role-menu.service.js';
 import {
   bulkCreateInvoiceValidator,
   createInvoiceValidator,
@@ -12,32 +13,72 @@ import {
 const router = Router();
 const controller = new InvoiceController();
 
-const requireAdmin = (req, res, next) => {
-  if (req.user?.user_role !== 'admin') {
+const requireInvoicePermission = (permission) => async (req, res, next) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    const roles = await new RoleMenuService(req.db_type).getRoles({ userId, visible: true });
+    const invoicePermissions = roles[0]?.roleMenu?.invoice_tracker;
+    if (!invoicePermissions && req.user?.user_role === 'admin') {
+      return next();
+    }
+    if (!invoicePermissions?.[permission]) {
+      throw Object.assign(new Error('Forbidden'), { status: 403 });
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+};
+
+const requireInvoiceView = requireInvoicePermission('view');
+const requireInvoiceAdd = requireInvoicePermission('add');
+const requireInvoiceEdit = requireInvoicePermission('edit');
+const requireInvoiceDelete = requireInvoicePermission('delete');
+const requireInvoiceImport = requireInvoicePermission('import');
+
+const requireAnyInvoiceExportOrView = async (req, res, next) => {
+  try {
+    const userId = req.user?._id || req.user?.id;
+    const roles = await new RoleMenuService(req.db_type).getRoles({ userId, visible: true });
+    const invoicePermissions = roles[0]?.roleMenu?.invoice_tracker;
+    if (!invoicePermissions && req.user?.user_role === 'admin') {
+      return next();
+    }
+    if (!invoicePermissions?.view && !invoicePermissions?.export) {
+      throw Object.assign(new Error('Forbidden'), { status: 403 });
+    }
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+};
+
+const requireInvoiceScheduleView = (req, res, next) => requireInvoiceView(req, res, next);
+
+router.use((req, res, next) => {
+  if (!req.user) {
     return next(Object.assign(new Error('Forbidden'), { status: 403 }));
   }
 
   return next();
-};
-
-router.use(requireAdmin);
+});
 
 router.route('/')
-  .get(listInvoiceValidator, validate, controller.getAll)
-  .post(createInvoiceValidator, validate, controller.create);
+  .get(requireInvoiceView, listInvoiceValidator, validate, controller.getAll)
+  .post(requireInvoiceAdd, createInvoiceValidator, validate, controller.create);
 
 router.route('/bulk')
-  .post(bulkCreateInvoiceValidator, validate, controller.bulkCreate);
+  .post(requireInvoiceImport, bulkCreateInvoiceValidator, validate, controller.bulkCreate);
 
 router.route('/reports/monthly')
-  .get(monthlyReportValidator, validate, controller.getMonthlyReport);
+  .get(requireAnyInvoiceExportOrView, monthlyReportValidator, validate, controller.getMonthlyReport);
 
 router.route('/:id/schedules')
-  .get(controller.getSchedules);
+  .get(requireInvoiceScheduleView, controller.getSchedules);
 
 router.route('/:id')
-  .get(controller.getById)
-  .patch(updateInvoiceValidator, validate, controller.update)
-  .delete(controller.delete);
+  .get(requireInvoiceView, controller.getById)
+  .patch(requireInvoiceEdit, updateInvoiceValidator, validate, controller.update)
+  .delete(requireInvoiceDelete, controller.delete);
 
 export default router;
