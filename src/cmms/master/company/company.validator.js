@@ -25,7 +25,6 @@ const optionalStringValidator = (field, label) => field
 
 const featureFlagValidators = () => [
     body('cookie_status').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid cookie status'),
-    body('redis_status').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid redis status'),
     body('encrypt_payload').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid payload encryption status'),
     body('encrypt_response').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid response encryption status'),
 ];
@@ -116,7 +115,6 @@ export const listCompanyValidator = [
     query('account_status').optional({ checkFalsy: true }).isIn(ACCOUNT_STATUS).withMessage('Invalid status'),
     query('experience_profile').optional({ checkFalsy: true }).isIn(EXPERIENCE_PROFILES).withMessage('Invalid experience profile'),
     query('cookie_status').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid cookie status'),
-    query('redis_status').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid redis status'),
     query('encrypt_payload').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid payload encryption status'),
     query('encrypt_response').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid response encryption status'),
     query('subscription_type').optional({ checkFalsy: true }).isIn(ACCOUNT_SUBSCRIPTION_TYPE).withMessage('Invalid subscription type'),

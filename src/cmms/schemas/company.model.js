@@ -40,9 +40,6 @@ export const defaultSubscriptionLimitData = {
  *         cookie_status:
  *           type: string
  *           enum: [enabled, disabled]
- *         redis_status:
- *           type: string
- *           enum: [enabled, disabled]
  *         encrypt_payload:
  *           type: string
  *           enum: [enabled, disabled]
@@ -88,7 +85,6 @@ const AccountSchema = new Schema(
     fileName: { type: String, trim: true },
     default_language: { type: String, trim: true, default: 'en' },
     cookie_status: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
-    redis_status: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     encrypt_payload: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     encrypt_response: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     account_role_menu: { type: Object, default: {} },

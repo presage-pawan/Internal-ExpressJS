@@ -17,7 +17,6 @@ const ACCOUNT_UPDATE_FIELDS = [
     'fileName',
     'default_language',
     'cookie_status',
-    'redis_status',
     'encrypt_payload',
     'encrypt_response',
     'visible',
@@ -42,7 +41,7 @@ const SUBSCRIPTION_FIELDS = [
     'asset_limit'
 ];
 
-const FEATURE_STATUS_FIELDS = ['cookie_status', 'redis_status', 'encrypt_payload', 'encrypt_response'];
+const FEATURE_STATUS_FIELDS = ['cookie_status', 'encrypt_payload', 'encrypt_response'];
 const LIMIT_FIELDS = ['user_limit', 'location_limit', 'asset_limit'];
 const DATE_FIELDS = ['subscription_start_date', 'subscription_end_date'];
 const FILTER_FIELDS = [
@@ -50,7 +49,6 @@ const FILTER_FIELDS = [
     'account_status',
     'experience_profile',
     'cookie_status',
-    'redis_status',
     'encrypt_payload',
     'encrypt_response',
     'subscription_status',

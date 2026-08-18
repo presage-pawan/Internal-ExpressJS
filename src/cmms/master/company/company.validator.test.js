@@ -43,7 +43,6 @@ test('createCompanyValidator accepts CMMS account feature flags', async () => {
     account_status: 'active',
     experience_profile: 'oem',
     cookie_status: 'enabled',
-    redis_status: 'disabled',
     encrypt_payload: 'enabled',
     encrypt_response: 'disabled',
     visible: true
@@ -55,7 +54,6 @@ test('createCompanyValidator accepts CMMS account feature flags', async () => {
 test('updateCompanyValidator rejects invalid account feature flag values', async () => {
   const errors = await runValidations(updateCompanyValidator, {
     cookie_status: 'yes',
-    redis_status: 'disabled',
     encrypt_payload: 'enabled',
     encrypt_response: 'no'
   });
@@ -168,7 +166,6 @@ test('AccountModel persists CMMS-compatible feature defaults and validates enums
   });
 
   assert.equal(account.cookie_status, 'enabled');
-  assert.equal(account.redis_status, 'enabled');
   assert.equal(account.encrypt_payload, 'enabled');
   assert.equal(account.encrypt_response, 'enabled');
   assert.equal(account.experience_profile, 'standard_account');
