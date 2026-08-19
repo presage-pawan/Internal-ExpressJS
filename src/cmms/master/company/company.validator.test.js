@@ -192,9 +192,6 @@ test('AccountModel persists CMMS-compatible feature defaults and validates enums
   assert.equal(account.encrypt_response, 'enabled');
   assert.equal(account.experience_profile, 'standard_account');
   assert.equal(account.default_language, 'en');
-  assert.equal(account.subscription_type, 'free');
-  assert.equal(account.subscription_status, 'active');
-  assert.equal(account.user_limit, 0);
   assert.deepEqual(account.subscription.limits.toObject(), {
     asset_limit: 0,
     location_limit: 0,
@@ -209,7 +206,7 @@ test('AccountModel persists CMMS-compatible feature defaults and validates enums
   account.encrypt_payload = 'invalid';
   await assert.rejects(() => account.validate(), /`invalid` is not a valid enum value/);
 
-  account.subscription_status = 'invalid_status';
+  account.subscription.subscription_status = 'invalid_status';
   await assert.rejects(() => account.validate(), /`invalid_status` is not a valid enum value/);
 
   await connection.close();

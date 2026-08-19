@@ -100,6 +100,10 @@ const AccountSchema = new Schema(
     encrypt_payload: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     encrypt_response: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     account_role_menu: { type: Object, default: {} },
+    account_permission_version: { type: Number, default: 1 },
+    account_role_menu_schema_version: { type: Number, default: 2 },
+    account_role_menu_updated_by: { type: Schema.Types.ObjectId, ref: 'InternalUser' },
+    account_role_menu_updated_at: { type: Date },
     subscription: {
       type: SubscriptionSchema,
       default: () => ({

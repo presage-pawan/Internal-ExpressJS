@@ -6,7 +6,6 @@ export const PARENT_MODULES = [
   'master_asset',
   'master_dashboard',
   'master_devices',
-  'master_form',
   'master_inspections',
   'master_inventory',
   'master_library',
