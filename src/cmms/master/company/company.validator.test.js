@@ -324,3 +324,31 @@ test('listCompanyValidator accepts internal account filters and rejects invalid 
   assert.deepEqual(invalidFields, ['account_status', 'subscription_type', 'visible']);
 });
 
+test('CompanyService.findAllWithTokens executes aggregation pipeline with lookup for CustomAccessToken', async () => {
+  const service = new CompanyService('test');
+  let capturedPipeline = null;
+  service._model = {
+    aggregate(pipeline) {
+      capturedPipeline = pipeline;
+      return {
+        exec: async () => [
+          {
+            _id: new mongoose.Types.ObjectId(),
+            account_name: 'Acme Test',
+            downloadToken: 'token-abc',
+            hasExistingToken: true
+          }
+        ]
+      };
+    }
+  };
+  Object.defineProperty(service, 'model', { get() { return this._model; } });
+
+  const results = await service.findAllWithTokens({ visible: true });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].downloadToken, 'token-abc');
+  assert.equal(results[0].hasExistingToken, true);
+  assert.ok(capturedPipeline.some((stage) => stage.$lookup && stage.$lookup.from === 'CustomAccessToken'));
+});
+
+

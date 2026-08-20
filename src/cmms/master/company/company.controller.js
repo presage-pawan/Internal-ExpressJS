@@ -44,7 +44,7 @@ export class CompanyController {
     try {
       const service = this.getService(req);
       const filter = service.buildListFilter(req.query);
-      const data = await service.findAll(filter, null, { sort: { account_name: 1 } });
+      const data = await service.findAllWithTokens(filter, { sort: { account_name: 1 } });
 
       const internalFilter = {
         user_id: req.user.id,
@@ -67,7 +67,7 @@ export class CompanyController {
 
   getById = async (req, res, next) => {
     try {
-      const data = await this.getService(req).findById(validateObjectId(req.params.id));
+      const data = await this.getService(req).findByIdWithTokens(validateObjectId(req.params.id));
       if (!data) {
         throw Object.assign(new Error('Account not found'), { status: 404 });
       }

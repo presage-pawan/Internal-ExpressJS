@@ -18,9 +18,23 @@ export class UserTokenService {
         const limit = parseInt(options.limit) || 20;
         const skip  = (page - 1) * limit;
 
+        const normalizedFilter = { ...filter };
+        if (normalizedFilter.userId && typeof normalizedFilter.userId === 'string' && mongoose.Types.ObjectId.isValid(normalizedFilter.userId)) {
+            normalizedFilter.userId = new mongoose.Types.ObjectId(normalizedFilter.userId);
+        }
+        if (normalizedFilter.accountId) {
+            if (mongoose.Types.ObjectId.isValid(normalizedFilter.accountId)) {
+                normalizedFilter.account_id = new mongoose.Types.ObjectId(normalizedFilter.accountId);
+            }
+            delete normalizedFilter.accountId;
+        }
+        if (normalizedFilter.account_id && typeof normalizedFilter.account_id === 'string' && mongoose.Types.ObjectId.isValid(normalizedFilter.account_id)) {
+            normalizedFilter.account_id = new mongoose.Types.ObjectId(normalizedFilter.account_id);
+        }
+
         const [data, total] = await Promise.all([
-            this.model.find(filter).sort({ created: -1 }).skip(skip).limit(limit).lean(),
-            this.model.countDocuments(filter),
+            this.model.find(normalizedFilter).sort({ created: -1 }).skip(skip).limit(limit).lean(),
+            this.model.countDocuments(normalizedFilter),
         ]);
 
         return {
@@ -42,8 +56,44 @@ export class UserTokenService {
         return this.getAll({ userId: new mongoose.Types.ObjectId(userId) }, options);
     }
 
-    // ─── CREATE ───────────────────────────────────────────────────────────────
+    // ─── GET ALL TOKENS FOR AN ACCOUNT ────────────────────────────────────────
+    async getByAccountId(accountId, options = {}) {
+        if (!mongoose.Types.ObjectId.isValid(accountId)) {
+            throw Object.assign(new Error('Invalid accountId'), { status: 400 });
+        }
+        const filter = { account_id: new mongoose.Types.ObjectId(accountId) };
+        if (options.principalType) {
+            filter.principalType = options.principalType;
+        }
+        return this.getAll(filter, options);
+    }
+
+    // ─── GET ACTIVE DOWNLOAD TOKENS ──────────────────────────────────────────
+    async getActiveDownloadTokens(filter = {}) {
+        const now = new Date();
+        const query = {
+            principalType: 'download_data',
+            $or: [
+                { expiresAt: { $gt: now } },
+                { expiresAt: { $exists: false } }
+            ],
+            revokedAt: { $exists: false },
+            ...filter
+        };
+        if (query.account_id && typeof query.account_id === 'string' && mongoose.Types.ObjectId.isValid(query.account_id)) {
+            query.account_id = new mongoose.Types.ObjectId(query.account_id);
+        }
+        return this.model.find(query).sort({ created: -1 }).lean();
+    }
+
+    // ─── CREATE (enforces 1 token per account for download tokens) ─────────────
     async create(data) {
+        if (data.account_id && (data.principalType === 'download_data' || data.principalType === 'account')) {
+            await this.model.deleteMany({
+                account_id: new mongoose.Types.ObjectId(data.account_id),
+                principalType: data.principalType
+            });
+        }
         const token = new this.model(data);
         return token.save();
     }
@@ -60,5 +110,18 @@ export class UserTokenService {
         }
         return this.model.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
     }
+
+    // ─── REVOKE ALL TOKENS FOR AN ACCOUNT ────────────────────────────────────
+    async revokeAllByAccountId(accountId, principalType = null) {
+        if (!mongoose.Types.ObjectId.isValid(accountId)) {
+            throw Object.assign(new Error('Invalid accountId'), { status: 400 });
+        }
+        const filter = { account_id: new mongoose.Types.ObjectId(accountId) };
+        if (principalType) {
+            filter.principalType = principalType;
+        }
+        return this.model.deleteMany(filter);
+    }
 }
+
 

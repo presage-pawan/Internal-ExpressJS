@@ -83,8 +83,87 @@ export class CompanyService {
         return this.model.find(filter, projection, options).exec();
     }
 
+    async findAllWithTokens(filter = {}, options = {}) {
+        const now = new Date();
+        const pipeline = [
+            { $match: filter },
+            {
+                $lookup: {
+                    from: 'CustomAccessToken',
+                    let: { accountId: '$_id', nowTime: now },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {
+                                            $or: [
+                                                { $eq: ['$account_id', '$$accountId'] },
+                                                { $eq: [{ $toString: '$account_id' }, { $toString: '$$accountId' }] }
+                                            ]
+                                        },
+                                        { $eq: ['$principalType', 'download_data'] },
+                                        {
+                                            $or: [
+                                                { $eq: ['$revokedAt', null] },
+                                                { $not: ['$revokedAt'] }
+                                            ]
+                                        },
+                                        {
+                                            $or: [
+                                                { $eq: ['$expiresAt', null] },
+                                                { $not: ['$expiresAt'] },
+                                                { $gt: ['$expiresAt', '$$nowTime'] }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        { $sort: { created: -1 } },
+                        { $limit: 1 }
+                    ],
+                    as: 'downloadTokens'
+                }
+            },
+            {
+                $addFields: {
+                    id: '$_id',
+                    downloadToken: {
+                        $let: {
+                            vars: { firstToken: { $arrayElemAt: ['$downloadTokens', 0] } },
+                            in: {
+                                $ifNull: ['$$firstToken._id', null]
+                            }
+                        }
+                    },
+                    hasExistingToken: {
+                        $gt: [{ $size: '$downloadTokens' }, 0]
+                    },
+                    downloadTokenDetails: {
+                        $arrayElemAt: ['$downloadTokens', 0]
+                    }
+                }
+            },
+            {
+                $project: {
+                    downloadTokens: 0
+                }
+            },
+            { $sort: options.sort || { account_name: 1 } }
+        ];
+
+        return this.model.aggregate(pipeline).exec();
+    }
+
     async findById(id) {
         return this.model.findById(id).exec();
+    }
+
+    async findByIdWithTokens(id) {
+        const filter = { _id: id };
+        const results = await this.findAllWithTokens(filter);
+        return results[0] || null;
     }
 
     async update(id, payload) {
