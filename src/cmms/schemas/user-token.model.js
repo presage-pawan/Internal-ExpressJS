@@ -34,8 +34,12 @@ const userTokenSchema = new Schema({
     },
     userId: {
         type: Schema.Types.ObjectId,
-        required: true,
+        required: false,
         ref: 'User'
+    },
+    account_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Company'
     },
     principalType: {
         type: String,
