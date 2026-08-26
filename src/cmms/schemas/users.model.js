@@ -48,6 +48,7 @@ const UserSchema = new Schema(
     user_role: { type: String, enum: ROLE, default: 'employee', lowercase: true, trim: true },
     account_id: { type: Schema.Types.ObjectId, required: true },
     phone_no: { type: Object, required: true },
+    isTourCompleted: { type: Boolean, default: false },
     visible: { type: Boolean, default: true }
   },
   {

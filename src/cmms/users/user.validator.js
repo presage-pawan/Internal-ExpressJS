@@ -128,6 +128,12 @@ export const patchUserValidator = [
         .isBoolean().withMessage('visible must be a boolean'),
 ];
 
+export const bulkTourCompletionValidator = [
+    body('isTourCompleted')
+        .exists().withMessage('isTourCompleted is required')
+        .isBoolean().withMessage('isTourCompleted must be a boolean'),
+];
+
 // ─── LIST QUERY PARAMS ────────────────────────────────────────────────────────
 export const listUsersValidator = [
     query('page')

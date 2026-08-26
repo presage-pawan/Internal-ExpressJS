@@ -22,18 +22,18 @@ export class UserService {
 
     // ─── GET ALL (with pagination + filtering) ────────────────────────────────
     async getAll(filter = {}, options = {}) {
-        const page  = parseInt(options.page)  || 1;
+        const page = parseInt(options.page) || 1;
         const limit = parseInt(options.limit) || 20;
-        const skip  = (page - 1) * limit;
+        const skip = (page - 1) * limit;
 
         // Text search across firstName, lastName, username, email
         if (options.search) {
             const regex = new RegExp(options.search, 'i');
             filter.$or = [
                 { firstName: regex },
-                { lastName:  regex },
-                { username:  regex },
-                { email:     regex },
+                { lastName: regex },
+                { username: regex },
+                { email: regex },
             ];
         }
 
@@ -97,6 +97,11 @@ export class UserService {
             { $set: payload },
             { new: true, runValidators: true, projection: USER_PROJECTION }
         );
+    }
+
+    async updateTourCompletionForAll(isTourCompleted) {
+        const update = { isTourCompleted };
+        return this.model.updateMany({}, { $set: update });
     }
 
     // ─── SOFT DELETE ──────────────────────────────────────────────────────────
