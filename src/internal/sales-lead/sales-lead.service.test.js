@@ -6,21 +6,19 @@ import { SalesLeadService } from './sales-lead.service.js';
 
 const service = new SalesLeadService('production');
 
-class DuplicateTestService extends SalesLeadService {
-  constructor(duplicate) {
+class CompanyIndexTestService extends SalesLeadService {
+  constructor(indexes = []) {
     super('production');
-    this.duplicate = duplicate;
+    this.connectionOverride = {};
+    this.indexes = indexes;
+    this.droppedIndexes = [];
   }
 
   get model() {
-    const duplicate = this.duplicate;
     return {
-      findOne() {
-        return {
-          select() {
-            return { lean: async () => duplicate };
-          }
-        };
+      collection: {
+        indexes: async () => this.indexes,
+        dropIndex: async (name) => this.droppedIndexes.push(name)
       }
     };
   }
@@ -28,9 +26,6 @@ class DuplicateTestService extends SalesLeadService {
 
 class BulkTestService extends SalesLeadService {
   async create(payload) {
-    if (payload.prospective_company === 'Duplicate Co') {
-      throw Object.assign(new Error('An active lead already exists for Duplicate Co'), { status: 409 });
-    }
     return { id: new Types.ObjectId(), prospective_company: payload.prospective_company };
   }
 }
@@ -199,29 +194,27 @@ describe('Sales Lead Phase 3 analytics', () => {
 });
 
 describe('Sales Lead Phase 2 workflows', () => {
-  it('rejects duplicate active company leads', async () => {
-    const duplicateService = new DuplicateTestService({
-      _id: new Types.ObjectId(),
-      prospective_company: 'ACME',
-      owner_user_id: new Types.ObjectId()
-    });
+  it('removes the legacy unique company index while preserving unrelated indexes', async () => {
+    const indexService = new CompanyIndexTestService([
+      { name: '_id_', key: { _id: 1 }, unique: true },
+      { name: 'company_key_1', key: { company_key: 1 }, unique: true }
+    ]);
 
-    await assert.rejects(
-      duplicateService.assertNoDuplicate('acme'),
-      error => error.status === 409 && error.code === 'DUPLICATE_SALES_LEAD'
-    );
+    await indexService.ensureCompanyDuplicatesAllowed();
+
+    assert.deepEqual(indexService.droppedIndexes, ['company_key_1']);
   });
 
-  it('continues bulk import and returns row-level duplicate failures', async () => {
+  it('bulk imports multiple rows for the same company', async () => {
     const result = await new BulkTestService().bulkCreate([
-      { prospective_company: 'New Co' },
-      { prospective_company: 'Duplicate Co' }
+      { prospective_company: 'Sun Pharma', contact: 'First contact' },
+      { prospective_company: 'Sun Pharma', contact: 'Second contact' }
     ], { _id: new Types.ObjectId(), user_role: 'employee' });
 
     assert.equal(result.total_count, 2);
-    assert.equal(result.created_count, 1);
-    assert.equal(result.failed_count, 1);
-    assert.match(result.results[1].message, /already exists/);
+    assert.equal(result.created_count, 2);
+    assert.equal(result.failed_count, 0);
+    assert.deepEqual(result.results.map(row => row.prospective_company), ['Sun Pharma', 'Sun Pharma']);
   });
 });
 

@@ -34,7 +34,7 @@ export const createSalesLeadValidator = [
   body('discussion_stage').isIn(SALES_LEAD_STAGES).withMessage('Select a valid discussion stage'),
   body('deal_value').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Deal value must be 0 or greater'),
   body('quoted').isIn(QUOTED_OPTIONS).withMessage('Quoted must be Yes or No'),
-  body('next_action').trim().notEmpty().isLength({ max: 500 }).withMessage('Next action is required'),
+  body('next_action').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Next action is too long'),
   body('next_action_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Next action date must be valid'),
   body('remarks').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 3000 }).withMessage('Remarks are too long'),
   validateDateOrder
@@ -68,7 +68,7 @@ export const addSalesLeadInteractionValidator = [
   body('interaction_type').isIn(SALES_LEAD_INTERACTION_TYPES).withMessage('Select a valid interaction type'),
   body('notes').trim().notEmpty().isLength({ max: 3000 }).withMessage('Interaction notes are required'),
   body('discussion_stage').isIn(SALES_LEAD_STAGES).withMessage('Select a valid discussion stage'),
-  body('next_action').trim().notEmpty().isLength({ max: 500 }).withMessage('Next action is required'),
+  body('next_action').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 500 }).withMessage('Next action is too long'),
   body('next_action_date').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('Next action date must be valid')
 ];
 

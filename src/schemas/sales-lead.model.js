@@ -87,7 +87,7 @@ const SalesLeadSchema = new Schema({
   discussion_stage: { type: String, enum: SALES_LEAD_STAGES, required: true, trim: true },
   deal_value: { type: Number, min: 0, default: 0 },
   quoted: { type: String, enum: QUOTED_OPTIONS, default: 'no' },
-  next_action: { type: String, required: true, trim: true },
+  next_action: { type: String, trim: true },
   next_action_date: { type: Date },
   remarks: { type: String, trim: true },
   interactions: { type: [InteractionSchema], default: [] },
@@ -122,10 +122,6 @@ SalesLeadSchema.index({ owner_user_id: 1, visible: 1, last_interaction_date: -1 
 SalesLeadSchema.index({ prospective_company: 1, visible: 1 });
 SalesLeadSchema.index({ discussion_stage: 1, visible: 1 });
 SalesLeadSchema.index({ next_action_date: 1, visible: 1 });
-SalesLeadSchema.index(
-  { company_key: 1 },
-  { unique: true, partialFilterExpression: { visible: true } }
-);
 
 export const SalesLeadModel = (connection) => {
   if (!connection) throw Object.assign(new Error('Invalid database connection'), { status: 500 });

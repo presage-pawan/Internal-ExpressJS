@@ -23,6 +23,7 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$
 const toCompanyKey = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const startOfUtcDay = (value = new Date()) => new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 const addUtcDays = (date, days) => new Date(date.getTime() + (days * DAY_MS));
+const companyIndexCleanupByConnection = new WeakMap();
 
 export class SalesLeadService {
   constructor(dbType = 'production') {
@@ -55,6 +56,42 @@ export class SalesLeadService {
       return filter;
     }
     return { ...filter, owner_user_id: this.getRequesterId(requester) };
+  }
+
+  async ensureCompanyDuplicatesAllowed() {
+    const connection = this.connection;
+    let cleanup = companyIndexCleanupByConnection.get(connection);
+    if (!cleanup) {
+      cleanup = (async () => {
+        const collection = this.model.collection;
+        let indexes = [];
+        try {
+          indexes = await collection.indexes();
+        } catch (error) {
+          if (error?.code === 26 || error?.codeName === 'NamespaceNotFound') return;
+          throw error;
+        }
+        const uniqueCompanyIndexes = indexes.filter(index =>
+          index.unique === true
+          && index.key?.company_key === 1
+          && Object.keys(index.key).length === 1
+        );
+        for (const index of uniqueCompanyIndexes) {
+          try {
+            await collection.dropIndex(index.name);
+          } catch (error) {
+            if (error?.code !== 27 && error?.codeName !== 'IndexNotFound') throw error;
+          }
+        }
+      })();
+      companyIndexCleanupByConnection.set(connection, cleanup);
+    }
+    try {
+      await cleanup;
+    } catch (error) {
+      companyIndexCleanupByConnection.delete(connection);
+      throw error;
+    }
   }
 
   buildListFilter(requester, query = {}) {
@@ -283,7 +320,7 @@ export class SalesLeadService {
   async create(payload, requester) {
     const userId = this.getRequesterId(requester);
     const normalizedPayload = this.buildPayload(payload);
-    await this.assertNoDuplicate(normalizedPayload.company_key);
+    await this.ensureCompanyDuplicatesAllowed();
     const initialInteraction = {
       interaction_date: normalizedPayload.first_contact_date,
       interaction_type: 'First Contact',
@@ -306,9 +343,7 @@ export class SalesLeadService {
     const userId = this.getRequesterId(requester);
     const filter = this.buildAccessFilter(requester, { _id: validateObjectId(id), visible: true });
     const normalizedPayload = this.buildPayload(payload);
-    if (normalizedPayload.company_key) {
-      await this.assertNoDuplicate(normalizedPayload.company_key, id);
-    }
+    await this.ensureCompanyDuplicatesAllowed();
     const lead = await this.model.findOneAndUpdate(
       filter,
       { $set: { ...normalizedPayload, updatedBy: userId } },
@@ -328,27 +363,6 @@ export class SalesLeadService {
         deletedAt: new Date()
       }
     }, { new: true });
-  }
-
-  async assertNoDuplicate(companyKey, excludeId = null) {
-    if (!companyKey) return;
-    const normalizedName = new RegExp(`^${escapeRegex(companyKey)}$`, 'i');
-    const filter = {
-      visible: true,
-      $or: [
-        { company_key: companyKey },
-        { prospective_company: normalizedName }
-      ]
-    };
-    if (excludeId) filter._id = { $ne: validateObjectId(excludeId) };
-    const duplicate = await this.model.findOne(filter).select('_id prospective_company owner_user_id').lean();
-    if (duplicate) {
-      const error = Object.assign(new Error(`An active lead already exists for ${duplicate.prospective_company}`), {
-        status: 409,
-        code: 'DUPLICATE_SALES_LEAD'
-      });
-      throw error;
-    }
   }
 
   async bulkCreate(rows = [], requester) {
