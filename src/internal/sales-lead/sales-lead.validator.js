@@ -43,6 +43,8 @@ export const createSalesLeadValidator = [
 export const updateSalesLeadValidator = createSalesLeadValidator;
 
 export const listSalesLeadValidator = [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be 1 or greater'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('search').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 100 }),
   query('discussion_stage').optional({ nullable: true, checkFalsy: true }).isIn(SALES_LEAD_STAGES).withMessage('Select a valid discussion stage'),
   query('industry').optional({ nullable: true, checkFalsy: true }).isIn(SALES_LEAD_INDUSTRIES).withMessage('Select a valid industry'),

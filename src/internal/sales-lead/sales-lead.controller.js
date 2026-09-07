@@ -5,8 +5,13 @@ export class SalesLeadController {
 
   getAll = async (req, res, next) => {
     try {
-      const data = await this.getService(req).findAll(req.user, req.query);
-      res.status(200).json({ status: true, message: 'Sales leads fetched successfully', data });
+      const result = await this.getService(req).findAll(req.user, req.query);
+      res.status(200).json({
+        status: true,
+        message: 'Sales leads fetched successfully',
+        data: result.data,
+        pagination: result.pagination
+      });
     } catch (error) {
       next(error);
     }

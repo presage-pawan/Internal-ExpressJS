@@ -211,12 +211,32 @@ export class SalesLeadService {
   }
 
   async findAll(requester, query = {}) {
-    const leads = await this.model.find(this.buildListFilter(requester, query))
-      .select('-interactions')
-      .populate({ path: 'owner_user_id', select: 'firstName lastName username email jobTitle user_role' })
-      .sort({ last_interaction_date: -1, createdAt: -1 })
-      .lean();
-    return leads.map(lead => this.mapLead(lead));
+    const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+    const filter = this.buildListFilter(requester, query);
+    const [leads, total] = await Promise.all([
+      this.model.find(filter)
+        .select('-interactions')
+        .populate({ path: 'owner_user_id', select: 'firstName lastName username email jobTitle user_role' })
+        .sort({ last_interaction_date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.model.countDocuments(filter)
+    ]);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    return {
+      data: leads.map(lead => this.mapLead(lead)),
+      pagination: {
+        total,
+        page,
+        limit,
+        total_pages: totalPages,
+        has_previous: page > 1,
+        has_next: page < totalPages
+      }
+    };
   }
 
   async findById(id, requester) {
@@ -290,7 +310,10 @@ export class SalesLeadService {
     const monthly = group(lead => {
       const date = new Date(lead.first_contact_date);
       return Number.isNaN(date.getTime()) ? 'Unknown' : `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    })
+      .filter(row => row.name !== 'Unknown')
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(-12);
 
     return {
       period: { from_date: query.from_date || null, to_date: query.to_date || null },

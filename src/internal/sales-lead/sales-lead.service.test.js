@@ -30,6 +30,37 @@ class BulkTestService extends SalesLeadService {
   }
 }
 
+class PaginatedListTestService extends SalesLeadService {
+  constructor(rows, total) {
+    super('production');
+    this.rows = rows;
+    this.total = total;
+    this.appliedSkip = null;
+    this.appliedLimit = null;
+  }
+
+  get model() {
+    const query = {
+      select: () => query,
+      populate: () => query,
+      sort: () => query,
+      skip: (value) => {
+        this.appliedSkip = value;
+        return query;
+      },
+      limit: (value) => {
+        this.appliedLimit = value;
+        return query;
+      },
+      lean: async () => this.rows
+    };
+    return {
+      find: () => query,
+      countDocuments: async () => this.total
+    };
+  }
+}
+
 describe('SalesLeadService access control', () => {
   it('limits non-admin users to leads they own', () => {
     const userId = new Types.ObjectId();
@@ -64,6 +95,32 @@ describe('SalesLeadService access control', () => {
 });
 
 describe('SalesLeadService lead normalization', () => {
+  it('paginates detailed leads in the database query', async () => {
+    const paginatedService = new PaginatedListTestService([{
+      _id: new Types.ObjectId(),
+      first_contact_date: new Date('2026-09-01T00:00:00.000Z'),
+      last_interaction_date: new Date('2026-09-02T00:00:00.000Z'),
+      discussion_stage: 'New Lead'
+    }], 45);
+
+    const result = await paginatedService.findAll(
+      { _id: new Types.ObjectId(), user_role: 'admin' },
+      { page: '2', limit: '20' }
+    );
+
+    assert.equal(paginatedService.appliedSkip, 20);
+    assert.equal(paginatedService.appliedLimit, 20);
+    assert.equal(result.data.length, 1);
+    assert.deepEqual(result.pagination, {
+      total: 45,
+      page: 2,
+      limit: 20,
+      total_pages: 3,
+      has_previous: true,
+      has_next: true
+    });
+  });
+
   it('supports multiple contacts and assigns one primary contact', () => {
     const contacts = service.normalizeContacts([
       { contact_person: '  Ravi  ', email: 'RAVI@EXAMPLE.COM' },
@@ -190,6 +247,26 @@ describe('Sales Lead Phase 3 analytics', () => {
     assert.equal(analytics.employee_breakup[0].owner_user_id, String(employeeId));
     assert.equal(analytics.employee_breakup[0].won_count, 1);
     assert.deepEqual(analytics.monthly_trend.map(row => row.name), ['2026-04', '2026-05']);
+  });
+
+  it('returns at most the latest 12 monthly trend rows in chronological order', () => {
+    const leads = Array.from({ length: 13 }, (_, index) => ({
+      _id: new Types.ObjectId(),
+      first_contact_date: new Date(Date.UTC(2025, index, 1)),
+      last_interaction_date: new Date(Date.UTC(2025, index, 1)),
+      discussion_stage: 'New Lead',
+      deal_value: 0,
+      quoted: 'no',
+      industry: 'Manufacturing',
+      city_region: 'Pune',
+      interactions: []
+    }));
+
+    const monthlyTrend = service.buildAnalytics(leads).monthly_trend;
+
+    assert.equal(monthlyTrend.length, 12);
+    assert.equal(monthlyTrend[0].name, '2025-02');
+    assert.equal(monthlyTrend[11].name, '2026-01');
   });
 });
 

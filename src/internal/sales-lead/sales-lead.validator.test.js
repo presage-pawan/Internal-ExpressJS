@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { validationResult } from 'express-validator';
 import { createConnection, Types } from 'mongoose';
-import { SalesLeadModel } from '../../schemas/sales-lead.model.js';
+import { SALES_LEAD_INDUSTRIES, SalesLeadModel } from '../../schemas/sales-lead.model.js';
 import {
   addSalesLeadInteractionValidator,
   createSalesLeadValidator
@@ -15,6 +15,23 @@ const runValidators = async (validators, body) => {
 };
 
 describe('Sales Lead optional next action validation', () => {
+  it('uses the approved industry options', () => {
+    assert.deepEqual(SALES_LEAD_INDUSTRIES, [
+      'Automotive',
+      'Cement',
+      'Chemical',
+      'FMCG',
+      'Utilities',
+      'Manufacturing',
+      'Metals & Mining',
+      'Oil & Gas',
+      'Pharmaceutical',
+      'Power & Energy',
+      'Textile',
+      'Other'
+    ]);
+  });
+
   it('accepts a lead without a next action, including bulk-import shaped data', async () => {
     const errors = await runValidators(createSalesLeadValidator, {
       first_contact_date: '2026-09-01',
