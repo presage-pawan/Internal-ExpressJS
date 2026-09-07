@@ -13,9 +13,9 @@ export class UserController {
 
             // Always filter out soft-deleted records
             const filter = { visible: true };
-            if (companyId)   filter.account_id  = companyId;
-            if (user_status) filter.user_status  = user_status;
-            if (user_role)   filter.user_role    = user_role;
+            if (companyId) filter.account_id = companyId;
+            if (user_status) filter.user_status = user_status;
+            if (user_role) filter.user_role = user_role;
 
             const result = await this.getService(req).getAll(filter, { page, limit, search });
 
@@ -93,6 +93,25 @@ export class UserController {
                 throw Object.assign(new Error('User not found'), { status: 404 });
             }
             res.status(200).json({ status: true, message: 'User updated successfully', data: user });
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    updateTourCompletionForAll = async (req, res, next) => {
+        try {
+            const { isTourCompleted } = req.body;
+            const result = await this.getService(req).updateTourCompletionForAll(isTourCompleted);
+
+            res.status(200).json({
+                status: true,
+                message: `isTourCompleted updated to ${isTourCompleted} for all users successfully`,
+                data: {
+                    isTourCompleted,
+                    matchedCount: result.matchedCount,
+                    modifiedCount: result.modifiedCount,
+                },
+            });
         } catch (err) {
             next(err);
         }

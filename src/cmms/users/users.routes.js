@@ -12,6 +12,7 @@ import {
     updateUserValidator,
     patchUserValidator,
     listUsersValidator,
+    bulkTourCompletionValidator,
 } from './user.validator.js';
 
 /**
@@ -152,6 +153,34 @@ const buildUserCrudRouter = (mergeParams = false) => {
 
 export default () => {
     const router = express.Router();
+    /**
+     * @swagger
+     * /api/cmms/users/reset-tour-completion:
+     *   patch:
+     *     summary: Update isTourCompleted for all users
+     *     tags: [Users]
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - isTourCompleted
+     *             properties:
+     *               isTourCompleted:
+     *                 type: boolean
+     *     responses:
+     *       200:
+     *         description: Tour completion flag updated successfully for all users
+     */
+    router.patch(
+        '/reset-tour-completion',
+        bulkTourCompletionValidator,
+        controller.updateTourCompletionForAll
+    );
 
     /* ── User CRUD (flat, no company scope) ───────────────────────────────── */
     router.use('/', buildUserCrudRouter());

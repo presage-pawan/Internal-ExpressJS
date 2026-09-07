@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { UserTokenController } from './user-token.controller.js';
 import { validate } from '../../../middlewares/validate.js';
-import { createTokenValidator, listTokensValidator } from './user-token.validator.js';
+import { accountParamValidator, createTokenValidator, listTokensValidator } from './user-token.validator.js';
 
 const router = Router();
 const controller = new UserTokenController();
@@ -12,6 +12,9 @@ const controller = new UserTokenController();
  *   name: UserTokens
  *   description: User access token management
  */
+
+router.route('/active-download')
+    .get(controller.getActiveDownloadTokens);
 
 /**
  * @swagger
@@ -25,6 +28,7 @@ const controller = new UserTokenController();
  *       - { in: query, name: page,          schema: { type: integer, default: 1 } }
  *       - { in: query, name: limit,         schema: { type: integer, default: 20 } }
  *       - { in: query, name: userId,        schema: { type: string } }
+ *       - { in: query, name: accountId,     schema: { type: string } }
  *       - { in: query, name: principalType, schema: { type: string } }
  *     responses:
  *       200:
@@ -47,6 +51,34 @@ const controller = new UserTokenController();
 router.route('/')
     .get(listTokensValidator, validate, controller.getAll)
     .post(createTokenValidator, validate, controller.create);
+
+/**
+ * @swagger
+ * /api/cmms/users/tokens/account/{accountId}:
+ *   get:
+ *     summary: Get all tokens for a specific account
+ *     tags: [UserTokens]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: path, name: accountId, required: true, schema: { type: string } }
+ *     responses:
+ *       200:
+ *         description: List of tokens
+ *   delete:
+ *     summary: Revoke ALL tokens for an account
+ *     tags: [UserTokens]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - { in: path, name: accountId, required: true, schema: { type: string } }
+ *     responses:
+ *       200:
+ *         description: All tokens revoked
+ */
+router.route('/account/:accountId')
+    .get(accountParamValidator, validate, controller.getByAccountId)
+    .delete(accountParamValidator, validate, controller.revokeAllByAccountId);
 
 /**
  * @swagger
@@ -107,4 +139,5 @@ router.route('/:id')
     .delete(controller.delete);
 
 export default router;
+
 

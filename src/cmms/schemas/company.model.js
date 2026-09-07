@@ -40,44 +40,53 @@ export const defaultSubscriptionLimitData = {
  *         cookie_status:
  *           type: string
  *           enum: [enabled, disabled]
- *         redis_status:
- *           type: string
- *           enum: [enabled, disabled]
  *         encrypt_payload:
  *           type: string
  *           enum: [enabled, disabled]
  *         encrypt_response:
  *           type: string
  *           enum: [enabled, disabled]
- *         account_role_menu:
+ *         subscription:
  *           type: object
- *         account_permission_version:
- *           type: number
- *         subscription_plan:
- *           type: string
- *         subscription_type:
- *           type: string
- *           enum: [free, trial, monthly, yearly, one_time, lifetime]
- *         subscription_start_date:
- *           type: string
- *           format: date-time
- *         subscription_end_date:
- *           type: string
- *           format: date-time
- *         subscription_status:
- *           type: string
- *           enum: [active, inactive, expired, cancelled, suspended]
- *         user_limit:
- *           type: number
- *         location_limit:
- *           type: number
- *         asset_limit:
- *           type: number
  *         fileName:
  *           type: string
  *         visible:
  *           type: boolean
  */
+const SubscriptionLimitsSchema = new Schema(
+  {
+    asset_limit: { type: Number, default: 0 },
+    location_limit: { type: Number, default: 0 },
+    user_limit: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
+const SubscriptionSchema = new Schema(
+  {
+    limits: {
+      type: SubscriptionLimitsSchema,
+      default: () => ({ asset_limit: 0, location_limit: 0, user_limit: 0 })
+    },
+    subscription_type: {
+      type: String,
+      trim: true,
+      enum: ACCOUNT_SUBSCRIPTION_TYPE,
+      default: 'free'
+    },
+    subscription_status: {
+      type: String,
+      trim: true,
+      enum: ACCOUNT_SUBSCRIPTION_STATUS,
+      default: 'active'
+    },
+    subscription_start_date: { type: Date, default: null },
+    subscription_end_date: { type: Date, default: null },
+    subscription_plan: { type: String, trim: true, default: '' }
+  },
+  { _id: false }
+);
+
 const AccountSchema = new Schema(
   {
     account_name: { type: String, required: true, trim: true },
@@ -88,7 +97,6 @@ const AccountSchema = new Schema(
     fileName: { type: String, trim: true },
     default_language: { type: String, trim: true, default: 'en' },
     cookie_status: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
-    redis_status: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     encrypt_payload: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     encrypt_response: { type: String, trim: true, enum: ACCOUNT_FEATURE_STATUS, default: 'enabled' },
     account_role_menu: { type: Object, default: {} },
@@ -96,14 +104,17 @@ const AccountSchema = new Schema(
     account_role_menu_schema_version: { type: Number, default: 2 },
     account_role_menu_updated_by: { type: Schema.Types.ObjectId, ref: 'InternalUser' },
     account_role_menu_updated_at: { type: Date },
-    subscription_plan: { type: String, trim: true },
-    subscription_type: { type: String, trim: true, enum: ACCOUNT_SUBSCRIPTION_TYPE, default: ACCOUNT_SUBSCRIPTION_TYPE[0] },
-    subscription_start_date: { type: Date },
-    subscription_end_date: { type: Date },
-    subscription_status: { type: String, trim: true, enum: ACCOUNT_SUBSCRIPTION_STATUS, default: ACCOUNT_SUBSCRIPTION_STATUS[0] },
-    user_limit: { type: Number, default: 0 },
-    location_limit: { type: Number, default: 0 },
-    asset_limit: { type: Number, default: 0 },
+    subscription: {
+      type: SubscriptionSchema,
+      default: () => ({
+        limits: { asset_limit: 0, location_limit: 0, user_limit: 0 },
+        subscription_type: 'free',
+        subscription_status: 'active',
+        subscription_start_date: null,
+        subscription_end_date: null,
+        subscription_plan: ''
+      })
+    },
     visible: { type: Boolean, default: true }
   },
   {
@@ -128,7 +139,7 @@ const AccountSchema = new Schema(
 );
 
 AccountSchema.index({ account_name: 1 });
-AccountSchema.index({ account_status: 1, subscription_status: 1, subscription_type: 1 });
+AccountSchema.index({ account_status: 1, 'subscription.subscription_status': 1, 'subscription.subscription_type': 1 });
 
 export const AccountModel = (connection) => {
   if (!connection) throw new Error('❌ Database connection not provided');
