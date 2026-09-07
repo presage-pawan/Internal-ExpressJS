@@ -6,6 +6,35 @@ import { SalesLeadService } from './sales-lead.service.js';
 
 const service = new SalesLeadService('production');
 
+class DuplicateTestService extends SalesLeadService {
+  constructor(duplicate) {
+    super('production');
+    this.duplicate = duplicate;
+  }
+
+  get model() {
+    const duplicate = this.duplicate;
+    return {
+      findOne() {
+        return {
+          select() {
+            return { lean: async () => duplicate };
+          }
+        };
+      }
+    };
+  }
+}
+
+class BulkTestService extends SalesLeadService {
+  async create(payload) {
+    if (payload.prospective_company === 'Duplicate Co') {
+      throw Object.assign(new Error('An active lead already exists for Duplicate Co'), { status: 409 });
+    }
+    return { id: new Types.ObjectId(), prospective_company: payload.prospective_company };
+  }
+}
+
 describe('SalesLeadService access control', () => {
   it('limits non-admin users to leads they own', () => {
     const userId = new Types.ObjectId();
@@ -63,6 +92,136 @@ describe('SalesLeadService lead normalization', () => {
     });
 
     assert.equal(lead.days_in_pipeline, 10);
+  });
+
+  it('marks overdue and upcoming follow-ups in mapped leads', () => {
+    const overdue = service.mapLead({
+      _id: new Types.ObjectId(),
+      first_contact_date: new Date('2025-01-01'),
+      last_interaction_date: new Date('2025-01-02'),
+      discussion_stage: 'Qualified',
+      next_action_date: new Date('2025-01-03')
+    });
+    const upcoming = service.mapLead({
+      _id: new Types.ObjectId(),
+      first_contact_date: new Date('2025-01-01'),
+      last_interaction_date: new Date('2025-01-02'),
+      discussion_stage: 'Qualified',
+      next_action_date: new Date('2099-01-03')
+    });
+
+    assert.equal(overdue.follow_up_status, 'overdue');
+    assert.equal(overdue.is_overdue, true);
+    assert.equal(upcoming.follow_up_status, 'upcoming');
+  });
+
+  it('builds advanced admin filters including owner and follow-up status', () => {
+    const ownerId = new Types.ObjectId();
+    const filter = service.buildListFilter(
+      { _id: new Types.ObjectId(), user_role: 'admin' },
+      { industry: 'Manufacturing', quoted: 'yes', owner_user_id: String(ownerId), follow_up: 'overdue' }
+    );
+
+    assert.equal(filter.industry, 'Manufacturing');
+    assert.equal(filter.quoted, 'yes');
+    assert.equal(String(filter.owner_user_id), String(ownerId));
+    assert.ok(filter.next_action_date.$lt instanceof Date);
+  });
+
+  it('filters lead lists by first-contact reporting period', () => {
+    const filter = service.buildListFilter(
+      { _id: new Types.ObjectId(), user_role: 'admin' },
+      { from_date: '2026-04-01', to_date: '2027-03-31' }
+    );
+
+    assert.equal(filter.first_contact_date.$gte.toISOString(), '2026-04-01T00:00:00.000Z');
+    assert.equal(filter.first_contact_date.$lte.toISOString(), '2027-03-31T23:59:59.999Z');
+    assert.equal(filter.last_interaction_date, undefined);
+  });
+});
+
+describe('Sales Lead Phase 3 analytics', () => {
+  it('calculates summary KPIs and performance breakups', () => {
+    const employeeId = new Types.ObjectId();
+    const analytics = service.buildAnalytics([
+      {
+        _id: new Types.ObjectId(),
+        first_contact_date: new Date('2026-04-05T00:00:00.000Z'),
+        last_interaction_date: new Date('2026-04-06T00:00:00.000Z'),
+        discussion_stage: 'Qualified',
+        deal_value: 100000,
+        quoted: 'yes',
+        industry: 'Manufacturing',
+        city_region: 'Pune',
+        next_action_date: new Date('2025-01-01T00:00:00.000Z'),
+        interactions: [{}, {}],
+        owner_user_id: { _id: employeeId, firstName: 'Ravi', lastName: 'Patil' }
+      },
+      {
+        _id: new Types.ObjectId(),
+        first_contact_date: new Date('2026-05-01T00:00:00.000Z'),
+        last_interaction_date: new Date('2026-06-01T00:00:00.000Z'),
+        discussion_stage: 'Won',
+        deal_value: 250000,
+        quoted: 'yes',
+        industry: 'Automotive',
+        city_region: 'Mumbai',
+        interactions: [{}],
+        owner_user_id: { _id: employeeId, firstName: 'Ravi', lastName: 'Patil' }
+      },
+      {
+        _id: new Types.ObjectId(),
+        first_contact_date: new Date('2026-05-10T00:00:00.000Z'),
+        last_interaction_date: new Date('2026-05-20T00:00:00.000Z'),
+        discussion_stage: 'Lost',
+        deal_value: 50000,
+        quoted: 'no',
+        industry: 'Automotive',
+        city_region: 'Mumbai',
+        interactions: [],
+        owner_user_id: { _id: employeeId, firstName: 'Ravi', lastName: 'Patil' }
+      }
+    ], { from_date: '2026-04-01', to_date: '2027-03-31' });
+
+    assert.equal(analytics.summary.total_leads, 3);
+    assert.equal(analytics.summary.open_leads, 1);
+    assert.equal(analytics.summary.pipeline_value, 100000);
+    assert.equal(analytics.summary.won_value, 250000);
+    assert.equal(analytics.summary.conversion_rate, 50);
+    assert.equal(analytics.summary.quote_rate, 66.67);
+    assert.equal(analytics.summary.overdue_follow_ups, 1);
+    assert.equal(analytics.summary.total_interactions, 3);
+    assert.equal(analytics.employee_breakup[0].name, 'Ravi Patil');
+    assert.equal(analytics.employee_breakup[0].owner_user_id, String(employeeId));
+    assert.equal(analytics.employee_breakup[0].won_count, 1);
+    assert.deepEqual(analytics.monthly_trend.map(row => row.name), ['2026-04', '2026-05']);
+  });
+});
+
+describe('Sales Lead Phase 2 workflows', () => {
+  it('rejects duplicate active company leads', async () => {
+    const duplicateService = new DuplicateTestService({
+      _id: new Types.ObjectId(),
+      prospective_company: 'ACME',
+      owner_user_id: new Types.ObjectId()
+    });
+
+    await assert.rejects(
+      duplicateService.assertNoDuplicate('acme'),
+      error => error.status === 409 && error.code === 'DUPLICATE_SALES_LEAD'
+    );
+  });
+
+  it('continues bulk import and returns row-level duplicate failures', async () => {
+    const result = await new BulkTestService().bulkCreate([
+      { prospective_company: 'New Co' },
+      { prospective_company: 'Duplicate Co' }
+    ], { _id: new Types.ObjectId(), user_role: 'employee' });
+
+    assert.equal(result.total_count, 2);
+    assert.equal(result.created_count, 1);
+    assert.equal(result.failed_count, 1);
+    assert.match(result.results[1].message, /already exists/);
   });
 });
 

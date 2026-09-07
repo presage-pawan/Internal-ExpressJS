@@ -12,6 +12,15 @@ export class SalesLeadController {
     }
   };
 
+  getAnalytics = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).getAnalytics(req.user, req.query);
+      res.status(200).json({ status: true, message: 'Sales lead analytics fetched successfully', data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getById = async (req, res, next) => {
     try {
       const data = await this.getService(req).findById(req.params.id, req.user);
@@ -26,6 +35,35 @@ export class SalesLeadController {
     try {
       const data = await this.getService(req).create(req.body, req.user);
       res.status(201).json({ status: true, message: 'Sales lead created successfully', data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  bulkCreate = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).bulkCreate(req.body.leads, req.user);
+      res.status(201).json({ status: true, message: 'Sales lead import processed successfully', data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  addInteraction = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).addInteraction(req.params.id, req.body, req.user);
+      if (!data) throw Object.assign(new Error('Sales lead not found'), { status: 404 });
+      res.status(201).json({ status: true, message: 'Interaction added successfully', data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reassign = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).reassign(req.params.id, req.body.owner_user_id, req.user);
+      if (!data) throw Object.assign(new Error('Sales lead not found'), { status: 404 });
+      res.status(200).json({ status: true, message: 'Lead reassigned successfully', data });
     } catch (error) {
       next(error);
     }

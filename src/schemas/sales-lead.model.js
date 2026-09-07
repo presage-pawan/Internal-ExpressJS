@@ -31,6 +31,16 @@ export const SALES_LEAD_STAGES = [
 ];
 
 export const QUOTED_OPTIONS = ['yes', 'no'];
+export const SALES_LEAD_INTERACTION_TYPES = [
+  'First Contact',
+  'Call',
+  'Email',
+  'Meeting',
+  'Demo',
+  'Proposal',
+  'Follow-up',
+  'Note'
+];
 
 const ContactSchema = new Schema({
   contact_person: { type: String, required: true, trim: true },
@@ -40,9 +50,29 @@ const ContactSchema = new Schema({
   is_primary: { type: Boolean, default: false }
 }, { _id: true });
 
+const InteractionSchema = new Schema({
+  interaction_date: { type: Date, required: true },
+  interaction_type: { type: String, enum: SALES_LEAD_INTERACTION_TYPES, required: true, trim: true },
+  notes: { type: String, required: true, trim: true },
+  discussion_stage: { type: String, enum: SALES_LEAD_STAGES, required: true, trim: true },
+  next_action: { type: String, trim: true },
+  next_action_date: { type: Date },
+  createdBy: { type: Schema.Types.ObjectId, ref: 'InternalUser', required: true },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: true });
+
 const SalesLeadSchema = new Schema({
   first_contact_date: { type: Date, required: true },
-  last_interaction_date: { type: Date, required: true },
+  last_interaction_date: {
+    type: Date,
+    required: true,
+    validate: {
+      validator(value) {
+        return !this.first_contact_date || !value || value >= this.first_contact_date;
+      },
+      message: 'Last interaction cannot be before first contact'
+    }
+  },
   prospective_company: { type: String, required: true, trim: true },
   industry: { type: String, enum: SALES_LEAD_INDUSTRIES, required: true, trim: true },
   city_region: { type: String, required: true, trim: true },
@@ -58,7 +88,10 @@ const SalesLeadSchema = new Schema({
   deal_value: { type: Number, min: 0, default: 0 },
   quoted: { type: String, enum: QUOTED_OPTIONS, default: 'no' },
   next_action: { type: String, required: true, trim: true },
+  next_action_date: { type: Date },
   remarks: { type: String, trim: true },
+  interactions: { type: [InteractionSchema], default: [] },
+  company_key: { type: String, required: true, trim: true },
   owner_user_id: { type: Schema.Types.ObjectId, ref: 'InternalUser', required: true },
   visible: { type: Boolean, default: true },
   createdBy: { type: Schema.Types.ObjectId, ref: 'InternalUser', required: true },
@@ -88,6 +121,11 @@ const SalesLeadSchema = new Schema({
 SalesLeadSchema.index({ owner_user_id: 1, visible: 1, last_interaction_date: -1 });
 SalesLeadSchema.index({ prospective_company: 1, visible: 1 });
 SalesLeadSchema.index({ discussion_stage: 1, visible: 1 });
+SalesLeadSchema.index({ next_action_date: 1, visible: 1 });
+SalesLeadSchema.index(
+  { company_key: 1 },
+  { unique: true, partialFilterExpression: { visible: true } }
+);
 
 export const SalesLeadModel = (connection) => {
   if (!connection) throw Object.assign(new Error('Invalid database connection'), { status: 500 });
