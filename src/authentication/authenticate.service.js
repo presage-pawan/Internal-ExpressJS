@@ -41,7 +41,11 @@ export class AuthenticationService {
     if (!username || !password) {
       throw Object.assign(new Error('Username and password are required'), { status: 400 });
     }
-    const user = await this.UserModel.findOne({ username }).select('+password').exec();
+    const user = await this.UserModel.findOne({
+      username,
+      user_status: 'active',
+      visible: { $ne: false }
+    }).select('+password').exec();
     const isValidPassword = user ? await PasswordService.compare(password, user.password) : false;
     if (!user || !isValidPassword) {
       throw Object.assign(new Error('Invalid username or password'), { status: 401 });

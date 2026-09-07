@@ -1,5 +1,6 @@
 import { PasswordService } from '../../utils/bcrypt.js';
 import { InternalUserModel } from '../../schemas/users.model.js';
+import { deleteAccessTokenByUserId } from '../../schemas/accessToken.model.js';
 import { getConnection } from '../../_db/index.js';
 
 export class UserService {
@@ -8,9 +9,25 @@ export class UserService {
     this.dbType = dbType;
   }
 
+  get connection() {
+    return getConnection(this.dbType, 'website');
+  }
+
   get UserModel() {
-    const connection = getConnection(this.dbType, 'website');
-    return InternalUserModel(connection);
+    return InternalUserModel(this.connection);
+  }
+
+  normalizeUpdatePayload(payload = {}) {
+    const normalized = { ...payload };
+    if (!normalized.user_status && normalized.userstatus) normalized.user_status = normalized.userstatus;
+    if (!normalized.user_role && normalized.userrole) normalized.user_role = normalized.userrole;
+    delete normalized.userstatus;
+    delete normalized.userrole;
+    return normalized;
+  }
+
+  revokeUserSessions(userId) {
+    return deleteAccessTokenByUserId(userId, this.connection);
   }
 
   async getAllUsers(filter = {}) {
@@ -30,17 +47,23 @@ export class UserService {
   }
 
   async updateUser(id, payload) {
-    if (payload.password) {
-      payload.password = await PasswordService.hash(payload.password);
+    const normalizedPayload = this.normalizeUpdatePayload(payload);
+    if (normalizedPayload.password) {
+      normalizedPayload.password = await PasswordService.hash(normalizedPayload.password);
     }
-    return this.UserModel.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
+    const user = await this.UserModel.findByIdAndUpdate(id, normalizedPayload, { new: true, runValidators: true });
+    if (user?.user_status === 'inactive') await this.revokeUserSessions(id);
+    return user;
   }
 
   async updatePartial(id, payload) {
-    if (payload.password) {
-      payload.password = await PasswordService.hash(payload.password);
+    const normalizedPayload = this.normalizeUpdatePayload(payload);
+    if (normalizedPayload.password) {
+      normalizedPayload.password = await PasswordService.hash(normalizedPayload.password);
     }
-    return this.UserModel.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true });
+    const user = await this.UserModel.findByIdAndUpdate(id, { $set: normalizedPayload }, { new: true, runValidators: true });
+    if (user?.user_status === 'inactive') await this.revokeUserSessions(id);
+    return user;
   }
 
   async deleteUser(id, updatedBy) {
