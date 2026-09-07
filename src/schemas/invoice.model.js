@@ -21,7 +21,8 @@ const InvoiceSchema = new Schema(
     invoice_type: { type: String, enum: INVOICE_TYPES, required: true, trim: true },
 
     currency: { type: String, trim: true, default: 'INR' },
-    exchange_rate: { type: Number, default: 1, min: 0 },
+    exchange_rate: { type: Number, default: 1, min: 0.000001 },
+    original_invoice_value: { type: Number, min: 0 },
     invoice_value: { type: Number, required: true, min: 0 },
     taxable_value: { type: Number, min: 0 },
     gst_percentage: { type: Number, min: 0, default: 0 },

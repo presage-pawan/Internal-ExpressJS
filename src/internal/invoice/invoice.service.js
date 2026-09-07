@@ -34,6 +34,8 @@ const toNumber = (value, defaultValue = 0) => {
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(MONEY_DECIMALS));
 
+const roundExchangeRate = (value) => Number(Number(value || 0).toFixed(6));
+
 const toQuantity = (value, fieldName) => {
   if (value === undefined || value === null || value === '') {
     return 0;
@@ -144,6 +146,29 @@ const monthEnd = (date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCM
 
 const addMonths = (date, months) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
 
+const enumerateMonths = (fromMonth, toMonth, maximumMonths = 60) => {
+  if (!MONTH_FORMAT_REGEX.test(String(fromMonth || '')) || !MONTH_FORMAT_REGEX.test(String(toMonth || ''))) {
+    throw Object.assign(new Error('Months must use YYYY-MM format'), { status: 400 });
+  }
+
+  if (fromMonth > toMonth) {
+    throw Object.assign(new Error('From month must not be after to month'), { status: 400 });
+  }
+
+  const [fromYear, fromMonthNumber] = fromMonth.split('-').map(Number);
+  const [toYear, toMonthNumber] = toMonth.split('-').map(Number);
+  const totalMonths = ((toYear - fromYear) * 12) + (toMonthNumber - fromMonthNumber) + 1;
+
+  if (totalMonths > maximumMonths) {
+    throw Object.assign(new Error(`Invoice export range cannot exceed ${maximumMonths} months`), { status: 400 });
+  }
+
+  return Array.from({ length: totalMonths }, (_, index) => {
+    const date = new Date(Date.UTC(fromYear, fromMonthNumber - 1 + index, 1));
+    return toMonthKey(date);
+  });
+};
+
 const monthsInclusive = (startDate, endDate) => {
   const start = monthStart(startDate);
   const end = monthStart(endDate);
@@ -252,6 +277,14 @@ export class InvoiceService {
       ...existingInvoice.toObject(),
       ...payload
     };
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'invoice_value')
+      && !Object.prototype.hasOwnProperty.call(payload, 'original_invoice_value')
+    ) {
+      mergedPayload.original_invoice_value = undefined;
+    }
+
     const updatePayload = this.buildInvoicePayload(mergedPayload, { userId, isCreate: false });
 
     Object.assign(existingInvoice, updatePayload);
@@ -309,6 +342,18 @@ export class InvoiceService {
 
     const normalizedSchedules = await this.normalizeSubscriptionScheduleAmounts(schedules);
     return this.buildMonthlyReport(normalizedSchedules, month);
+  }
+
+  async getRangeReport(fromMonth, toMonth) {
+    const months = enumerateMonths(fromMonth, toMonth);
+    const schedules = await this.scheduleModel.find({
+      revenue_month: { $gte: fromMonth, $lte: toMonth },
+      visible: true,
+      status: 'scheduled'
+    }).sort({ revenue_month: 1, customer_name: 1, invoice_no: 1, revenue_type: 1 }).lean();
+
+    const normalizedSchedules = await this.normalizeSubscriptionScheduleAmounts(schedules);
+    return this.buildRangeReport(normalizedSchedules, fromMonth, toMonth, months);
   }
 
   async regenerateSchedules(invoice, userId) {
@@ -386,6 +431,9 @@ export class InvoiceService {
         throw Object.assign(new Error('Month must use YYYY-MM format'), { status: 400 });
       }
       filter.invoice_month = query.month;
+    } else if (query.from_month || query.to_month) {
+      enumerateMonths(query.from_month, query.to_month);
+      filter.invoice_month = { $gte: query.from_month, $lte: query.to_month };
     }
 
     if (query.invoice_type) {
@@ -409,8 +457,19 @@ export class InvoiceService {
   buildInvoicePayload(payload, options = {}) {
     const invoiceDate = toDate(payload.invoice_date, 'Invoice date');
     const invoiceType = payload.invoice_type;
-    const invoiceValue = roundMoney(toNumber(payload.invoice_value));
-    const exchangeRate = toNumber(payload.exchange_rate, 1);
+    const currency = String(payload.currency || 'INR').trim().toUpperCase();
+    const requestedExchangeRate = roundExchangeRate(toNumber(payload.exchange_rate, 1));
+    const exchangeRate = currency === 'INR' ? 1 : requestedExchangeRate;
+    const submittedInvoiceValue = roundMoney(toNumber(payload.invoice_value));
+    const hasOriginalInvoiceValue = payload.original_invoice_value !== undefined
+      && payload.original_invoice_value !== null
+      && payload.original_invoice_value !== '';
+    const originalInvoiceValue = hasOriginalInvoiceValue
+      ? roundMoney(toNumber(payload.original_invoice_value))
+      : roundMoney(submittedInvoiceValue / exchangeRate);
+    const invoiceValue = hasOriginalInvoiceValue
+      ? roundMoney(originalInvoiceValue * exchangeRate)
+      : submittedInvoiceValue;
     const gstPercentage = roundMoney(toNumber(payload.gst_percentage, 0));
     const taxableValue = payload.taxable_value === undefined || payload.taxable_value === null || payload.taxable_value === ''
       ? invoiceValue
@@ -425,6 +484,18 @@ export class InvoiceService {
 
     if (!['one_time', 'other', 'recurring', 'mixed'].includes(invoiceType)) {
       throw Object.assign(new Error('Invalid invoice type'), { status: 400 });
+    }
+
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      throw Object.assign(new Error('Currency must be a 3-letter ISO code'), { status: 400 });
+    }
+
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      throw Object.assign(new Error('Exchange rate must be greater than 0'), { status: 400 });
+    }
+
+    if (!Number.isFinite(originalInvoiceValue) || originalInvoiceValue <= 0) {
+      throw Object.assign(new Error('Original invoice value must be greater than 0'), { status: 400 });
     }
 
     if (invoiceValue <= 0) {
@@ -489,8 +560,9 @@ export class InvoiceService {
       invoice_date: invoiceDate,
       invoice_month: toMonthKey(invoiceDate),
       invoice_type: invoiceType,
-      currency: payload.currency ? String(payload.currency).trim().toUpperCase() : 'INR',
+      currency,
       exchange_rate: exchangeRate,
+      original_invoice_value: originalInvoiceValue,
       invoice_value: invoiceValue,
       taxable_value: taxableValue,
       gst_percentage: gstPercentage,
@@ -661,6 +733,59 @@ export class InvoiceService {
       invoice_breakup: this.finalizeGroupedRows(invoiceMap),
       revenue_type_breakup: this.finalizeGroupedRows(revenueTypeMap),
       rows: detail
+    };
+  }
+
+  buildRangeReport(schedules = [], fromMonth, toMonth, months = enumerateMonths(fromMonth, toMonth)) {
+    const monthlyReports = months.map((month) => this.buildMonthlyReport(
+      schedules.filter((schedule) => schedule.revenue_month === month),
+      month
+    ));
+    const rows = monthlyReports.flatMap((report) => report.rows);
+    const summary = {
+      from_month: fromMonth,
+      to_month: toMonth,
+      one_time_revenue: 0,
+      recurring_current_month_revenue: 0,
+      recurring_previous_invoice_revenue: 0,
+      recurring_future_invoice_revenue: 0,
+      recurring_revenue: 0,
+      total_revenue: 0,
+      row_count: rows.length
+    };
+    const customerMap = new Map();
+    const invoiceMap = new Map();
+    const revenueTypeMap = new Map();
+
+    rows.forEach((row) => {
+      this.addToSummary(summary, row.source_type, row.amount);
+      this.addToGroupedMap(customerMap, row.customer_name || 'Unknown Customer', row.source_type, row.amount, {
+        customer_name: row.customer_name || 'Unknown Customer'
+      });
+      this.addToGroupedMap(invoiceMap, String(row.invoice_id || row.invoice_no), row.source_type, row.amount, {
+        invoice_id: row.invoice_id,
+        invoice_no: row.invoice_no,
+        invoice_date: row.invoice_date,
+        invoice_month: row.invoice_month,
+        customer_name: row.customer_name,
+        invoice_type: row.invoice_type
+      });
+      this.addToGroupedMap(revenueTypeMap, row.source_type, row.source_type, row.amount, {
+        revenue_type: row.source_type
+      });
+    });
+
+    this.finalizeSummary(summary);
+
+    return {
+      from_month: fromMonth,
+      to_month: toMonth,
+      summary,
+      monthly_summaries: monthlyReports.map((report) => report.summary),
+      customer_breakup: this.finalizeGroupedRows(customerMap),
+      invoice_breakup: this.finalizeGroupedRows(invoiceMap),
+      revenue_type_breakup: this.finalizeGroupedRows(revenueTypeMap),
+      rows
     };
   }
 

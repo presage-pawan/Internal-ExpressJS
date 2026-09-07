@@ -62,6 +62,15 @@ export class InvoiceController {
     }
   };
 
+  getRangeReport = async (req, res, next) => {
+    try {
+      const data = await this.getService(req).getRangeReport(req.query.from_month, req.query.to_month);
+      res.status(200).json({ status: true, message: 'Invoice revenue range report fetched successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   update = async (req, res, next) => {
     try {
       const data = await this.getService(req).update(req.params.id, req.body, req.user?._id || req.user?.id);

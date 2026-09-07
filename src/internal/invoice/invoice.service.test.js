@@ -114,6 +114,47 @@ describe('InvoiceService schedule generation', () => {
     );
   });
 
+  it('stores foreign-currency details while keeping the operational invoice value in INR', () => {
+    const payload = service.buildInvoicePayload({
+      customer_name: 'Global Customer',
+      invoice_no: 'INV-USD-001',
+      invoice_date: '2026-09-07',
+      invoice_type: 'one_time',
+      currency: 'usd',
+      exchange_rate: 83.456789,
+      original_invoice_value: 1000,
+      invoice_value: 83456.79
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(payload.currency, 'USD');
+    assert.equal(payload.exchange_rate, 83.456789);
+    assert.equal(payload.original_invoice_value, 1000);
+    assert.equal(payload.invoice_value, 83456.79);
+    assert.equal(payload.one_time_amount, 83456.79);
+
+    const rows = service.buildScheduleRows({
+      _id: new Types.ObjectId(),
+      ...payload
+    }, new Types.ObjectId());
+
+    assert.equal(rows[0].amount, 83456.79);
+  });
+
+  it('defaults INR invoices to exchange rate 1 and preserves legacy invoice values', () => {
+    const payload = service.buildInvoicePayload({
+      customer_name: 'Indian Customer',
+      invoice_no: 'INV-INR-001',
+      invoice_date: '2026-09-07',
+      invoice_type: 'one_time',
+      invoice_value: 50000
+    }, { userId: new Types.ObjectId(), isCreate: true });
+
+    assert.equal(payload.currency, 'INR');
+    assert.equal(payload.exchange_rate, 1);
+    assert.equal(payload.original_invoice_value, 50000);
+    assert.equal(payload.invoice_value, 50000);
+  });
+
   it('tracks subscription invoices only in the invoice month while keeping contract dates as reference', () => {
     const invoice = {
       _id: new Types.ObjectId(),
@@ -411,6 +452,57 @@ describe('InvoiceService schedule generation', () => {
         ['recurring_previous_invoice', 10000]
       ].sort()
     );
+  });
+
+  it('builds an aggregated report across multiple months', () => {
+    const aprilInvoiceId = new Types.ObjectId();
+    const mayInvoiceId = new Types.ObjectId();
+    const report = service.buildRangeReport([
+      {
+        _id: new Types.ObjectId(),
+        invoice_id: aprilInvoiceId,
+        customer_name: 'April Customer',
+        invoice_no: 'INV-APR-001',
+        invoice_date: new Date('2025-04-10T00:00:00.000Z'),
+        invoice_month: '2025-04',
+        invoice_type: 'one_time',
+        revenue_month: '2025-04',
+        revenue_date: new Date('2025-04-30T00:00:00.000Z'),
+        revenue_type: 'one_time',
+        amount: 10000
+      },
+      {
+        _id: new Types.ObjectId(),
+        invoice_id: mayInvoiceId,
+        customer_name: 'May Customer',
+        invoice_no: 'INV-MAY-001',
+        invoice_date: new Date('2025-05-10T00:00:00.000Z'),
+        invoice_month: '2025-05',
+        invoice_type: 'recurring',
+        invoice_value: 25000,
+        recurring_amount: 25000,
+        revenue_month: '2025-05',
+        revenue_date: new Date('2025-05-31T00:00:00.000Z'),
+        revenue_type: 'recurring',
+        amount: 25000
+      }
+    ], '2025-04', '2025-05');
+
+    assert.equal(report.monthly_summaries.length, 2);
+    assert.equal(report.monthly_summaries[0].selected_month, '2025-04');
+    assert.equal(report.monthly_summaries[0].total_revenue, 10000);
+    assert.equal(report.monthly_summaries[1].selected_month, '2025-05');
+    assert.equal(report.monthly_summaries[1].total_revenue, 25000);
+    assert.equal(report.summary.total_revenue, 35000);
+    assert.equal(report.summary.row_count, 2);
+    assert.equal(report.rows.length, 2);
+  });
+
+  it('builds an inclusive invoice month range filter', () => {
+    assert.deepEqual(service.buildListFilter({ from_month: '2025-04', to_month: '2026-03' }), {
+      visible: true,
+      invoice_month: { $gte: '2025-04', $lte: '2026-03' }
+    });
   });
 
   it('ignores legacy subscription schedule rows outside the invoice month in reports', () => {

@@ -11,6 +11,28 @@ const isRecurringType = (invoiceType) => invoiceType === 'recurring' || invoiceT
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
 
+const validateCurrencyDetails = (payload) => {
+  const currency = String(payload.currency || 'INR').trim().toUpperCase();
+  const exchangeRate = hasValue(payload.exchange_rate) ? Number(payload.exchange_rate) : 1;
+  const originalInvoiceValue = hasValue(payload.original_invoice_value)
+    ? Number(payload.original_invoice_value)
+    : null;
+
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error('Currency must be a 3-letter ISO code');
+  }
+
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+    throw new Error('Exchange rate must be greater than 0');
+  }
+
+  if (originalInvoiceValue !== null && (!Number.isFinite(originalInvoiceValue) || originalInvoiceValue <= 0)) {
+    throw new Error('Original invoice value must be greater than 0');
+  }
+
+  return true;
+};
+
 const toSensorQuantity = (value, fieldName) => {
   if (!hasValue(value)) {
     return 0;
@@ -163,6 +185,7 @@ const validateBulkInvoices = (rows = []) => {
     }
 
     try {
+      validateCurrencyDetails(row);
       validateInvoiceAmounts(row);
       validateContractDates(row);
     } catch (error) {
@@ -181,8 +204,9 @@ const baseInvoiceValidators = [
   body('invoice_no').trim().notEmpty().withMessage('Invoice no is required'),
   body('invoice_date').isISO8601().withMessage('Invoice date must be a valid date'),
   body('invoice_type').isIn(INVOICE_TYPES).withMessage('Invalid invoice type'),
-  body('currency').optional({ nullable: true, checkFalsy: true }).trim().isString(),
-  body('exchange_rate').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Exchange rate must be 0 or greater'),
+  body('currency').optional({ nullable: true, checkFalsy: true }).trim().matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter ISO code'),
+  body('exchange_rate').optional({ nullable: true, checkFalsy: true }).isFloat({ gt: 0 }).withMessage('Exchange rate must be greater than 0'),
+  body('original_invoice_value').optional({ nullable: true, checkFalsy: true }).isFloat({ gt: 0 }).withMessage('Original invoice value must be greater than 0'),
   body('invoice_value').isFloat({ gt: 0 }).withMessage('Invoice value must be greater than 0'),
   body('taxable_value').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Taxable value must be 0 or greater'),
   body('gst_percentage').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('GST % must be 0 or greater'),
@@ -202,6 +226,7 @@ const baseInvoiceValidators = [
 
 export const createInvoiceValidator = [
   ...baseInvoiceValidators,
+  body().custom(validateCurrencyDetails),
   body().custom(validateInvoiceAmounts),
   body().custom(validateContractDates)
 ];
@@ -218,8 +243,9 @@ export const updateInvoiceValidator = [
   body('invoice_no').optional().trim().notEmpty().withMessage('Invoice no cannot be empty'),
   body('invoice_date').optional().isISO8601().withMessage('Invoice date must be a valid date'),
   body('invoice_type').optional().isIn(INVOICE_TYPES).withMessage('Invalid invoice type'),
-  body('currency').optional({ nullable: true, checkFalsy: true }).trim().isString(),
-  body('exchange_rate').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Exchange rate must be 0 or greater'),
+  body('currency').optional({ nullable: true, checkFalsy: true }).trim().matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter ISO code'),
+  body('exchange_rate').optional({ nullable: true, checkFalsy: true }).isFloat({ gt: 0 }).withMessage('Exchange rate must be greater than 0'),
+  body('original_invoice_value').optional({ nullable: true, checkFalsy: true }).isFloat({ gt: 0 }).withMessage('Original invoice value must be greater than 0'),
   body('invoice_value').optional().isFloat({ gt: 0 }).withMessage('Invoice value must be greater than 0'),
   body('taxable_value').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Taxable value must be 0 or greater'),
   body('gst_percentage').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('GST % must be 0 or greater'),
@@ -239,10 +265,32 @@ export const updateInvoiceValidator = [
 
 export const listInvoiceValidator = [
   query('month').optional({ nullable: true, checkFalsy: true }).matches(monthRegex).withMessage('Month must use YYYY-MM format'),
+  query('from_month').optional({ nullable: true, checkFalsy: true }).matches(monthRegex).withMessage('From month must use YYYY-MM format'),
+  query('to_month').optional({ nullable: true, checkFalsy: true }).matches(monthRegex).withMessage('To month must use YYYY-MM format'),
+  query().custom((value) => {
+    if (!!value.from_month !== !!value.to_month) {
+      throw new Error('Both from_month and to_month are required for a range');
+    }
+    if (value.from_month && value.from_month > value.to_month) {
+      throw new Error('From month must not be after to month');
+    }
+    return true;
+  }),
   query('search').optional({ nullable: true, checkFalsy: true }).trim().isString(),
   query('invoice_type').optional({ nullable: true, checkFalsy: true }).isIn(INVOICE_TYPES).withMessage('Invalid invoice type')
 ];
 
 export const monthlyReportValidator = [
   query('month').notEmpty().withMessage('Month is required').matches(monthRegex).withMessage('Month must use YYYY-MM format')
+];
+
+export const rangeReportValidator = [
+  query('from_month').notEmpty().withMessage('From month is required').matches(monthRegex).withMessage('From month must use YYYY-MM format'),
+  query('to_month').notEmpty().withMessage('To month is required').matches(monthRegex).withMessage('To month must use YYYY-MM format'),
+  query().custom((value) => {
+    if (value.from_month > value.to_month) {
+      throw new Error('From month must not be after to month');
+    }
+    return true;
+  })
 ];

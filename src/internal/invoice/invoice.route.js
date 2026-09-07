@@ -7,6 +7,7 @@ import {
   createInvoiceValidator,
   listInvoiceValidator,
   monthlyReportValidator,
+  rangeReportValidator,
   updateInvoiceValidator
 } from './invoice.validator.js';
 
@@ -72,6 +73,9 @@ router.route('/bulk')
 
 router.route('/reports/monthly')
   .get(requireAnyInvoiceExportOrView, monthlyReportValidator, validate, controller.getMonthlyReport);
+
+router.route('/reports/range')
+  .get(requireAnyInvoiceExportOrView, rangeReportValidator, validate, controller.getRangeReport);
 
 router.route('/:id/schedules')
   .get(requireInvoiceScheduleView, controller.getSchedules);
