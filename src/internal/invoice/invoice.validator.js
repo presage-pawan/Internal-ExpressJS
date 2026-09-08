@@ -284,6 +284,10 @@ export const monthlyReportValidator = [
   query('month').notEmpty().withMessage('Month is required').matches(monthRegex).withMessage('Month must use YYYY-MM format')
 ];
 
+export const invoiceMigrationValidator = [
+  body('batch_size').optional().isInt({ min: 1, max: 1000 }).withMessage('Batch size must be between 1 and 1000')
+];
+
 export const rangeReportValidator = [
   query('from_month').notEmpty().withMessage('From month is required').matches(monthRegex).withMessage('From month must use YYYY-MM format'),
   query('to_month').notEmpty().withMessage('To month is required').matches(monthRegex).withMessage('To month must use YYYY-MM format'),

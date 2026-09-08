@@ -5,6 +5,7 @@ import { InvoiceRevenueScheduleModel } from '../../schemas/invoice-revenue-sched
 
 const MONTH_FORMAT_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 const MONEY_DECIMALS = 2;
+export const INVOICE_DATABASE_CATEGORY = 'website';
 const SENSOR_PRICES = Object.freeze({
   edgepulse: 5500,
   vibo: 7000
@@ -188,7 +189,7 @@ export class InvoiceService {
   }
 
   get connection() {
-    return getConnection(this.dbType, 'cmms');
+    return getConnection(this.dbType, INVOICE_DATABASE_CATEGORY);
   }
 
   get invoiceModel() {

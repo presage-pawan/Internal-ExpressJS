@@ -1,8 +1,28 @@
 import { validateObjectId } from '../../utils/helper.js';
 import { InvoiceService } from './invoice.service.js';
+import { InvoiceMigrationService } from './invoice-migration.service.js';
 
 export class InvoiceController {
   getService = (req) => new InvoiceService(req.db_type);
+  getMigrationService = () => new InvoiceMigrationService();
+
+  getMigrationStatus = async (req, res, next) => {
+    try {
+      const data = await this.getMigrationService().getStatus();
+      res.status(200).json({ status: true, message: 'Invoice migration status fetched successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  migrateToWebsite = async (req, res, next) => {
+    try {
+      const data = await this.getMigrationService().migrate({ batchSize: req.body?.batch_size });
+      res.status(200).json({ status: true, message: 'Invoice data copied to website database successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
 
   create = async (req, res, next) => {
     try {

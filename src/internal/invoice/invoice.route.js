@@ -5,6 +5,7 @@ import { RoleMenuService } from '../role-menu/role-menu.service.js';
 import {
   bulkCreateInvoiceValidator,
   createInvoiceValidator,
+  invoiceMigrationValidator,
   listInvoiceValidator,
   monthlyReportValidator,
   rangeReportValidator,
@@ -56,6 +57,13 @@ const requireAnyInvoiceExportOrView = async (req, res, next) => {
 
 const requireInvoiceScheduleView = (req, res, next) => requireInvoiceView(req, res, next);
 
+const requireAdmin = (req, res, next) => {
+  if (req.user?.user_role !== 'admin') {
+    return next(Object.assign(new Error('Admin access is required'), { status: 403 }));
+  }
+  return next();
+};
+
 router.use((req, res, next) => {
   if (!req.user) {
     return next(Object.assign(new Error('Forbidden'), { status: 403 }));
@@ -76,6 +84,10 @@ router.route('/reports/monthly')
 
 router.route('/reports/range')
   .get(requireAnyInvoiceExportOrView, rangeReportValidator, validate, controller.getRangeReport);
+
+router.route('/migrations/cmms-to-website')
+  .get(requireAdmin, controller.getMigrationStatus)
+  .post(requireAdmin, invoiceMigrationValidator, validate, controller.migrateToWebsite);
 
 router.route('/:id/schedules')
   .get(requireInvoiceScheduleView, controller.getSchedules);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Types } from 'mongoose';
-import { InvoiceService } from './invoice.service.js';
+import { INVOICE_DATABASE_CATEGORY, InvoiceService } from './invoice.service.js';
 
 const service = new InvoiceService('production');
 
@@ -37,6 +37,10 @@ class SoftDeleteTestInvoiceService extends InvoiceService {
 }
 
 describe('InvoiceService schedule generation', () => {
+  it('uses the website database for every invoice operation', () => {
+    assert.equal(INVOICE_DATABASE_CATEGORY, 'website');
+  });
+
   it('tracks one-time invoices only in the invoice month', () => {
     const invoice = {
       _id: new Types.ObjectId(),
