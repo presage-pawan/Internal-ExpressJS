@@ -46,17 +46,21 @@ export class CompanyController {
       const filter = service.buildListFilter(req.query);
       const data = await service.findAllWithTokens(filter, { sort: { account_name: 1 } });
 
-      const internalFilter = {
-        user_id: req.user.id,
-        db_type: req.db_type
-      };
+      let finalRes = data;
 
-      const assignedCompList = await this.getInternalService(req).getCompByUserId(internalFilter);
-      const assignedIds = assignedCompList[0]?.company_ids?.map(id => String(id)) || [];
+      if (req.user?.user_role !== 'admin') {
+        const internalFilter = {
+          user_id: req.user.id,
+          db_type: req.db_type
+        };
 
-      const finalRes = data.filter(item =>
-        assignedIds.includes(String(item._id || item.id))
-      );
+        const assignedCompList = await this.getInternalService(req).getCompByUserId(internalFilter);
+        const assignedIds = assignedCompList[0]?.company_ids?.map(id => String(id)) || [];
+
+        finalRes = data.filter(item =>
+          assignedIds.includes(String(item._id || item.id))
+        );
+      }
 
       res.status(200).json({ status: true, message: 'Accounts fetched successfully', data: finalRes });
 
