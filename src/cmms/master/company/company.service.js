@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { AccountModel, defaultSubscriptionLimitData } from '../../schemas/company.model.js';
 import { AccountRoleMenuAuditModel } from '../../schemas/account-role-menu-audit.model.js';
 import { TokenModel } from '../../schemas/user-token.model.js';
+import { AccountApiKeyModel } from '../../schemas/account-api-key.model.js';
 import { getConnection } from '../../../_db/index.js';
 import {
     ACCOUNT_ROLE_MENU_SCHEMA_VERSION,
@@ -76,6 +77,11 @@ export class CompanyService {
         return AccountRoleMenuAuditModel(connection);
     }
 
+    get apiKeyModel() {
+        const connection = getConnection(this.dbType, 'cmms');
+        return AccountApiKeyModel(connection);
+    }
+
     async create(payload) {
         const accountPayload = this.buildAccountPayload(payload, { isCreate: true });
         const account = new this.model(accountPayload);
@@ -90,6 +96,27 @@ export class CompanyService {
         const now = new Date();
         const pipeline = [
             { $match: filter },
+            {
+                $lookup: {
+                    from: 'account_api_key',
+                    let: { accountId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $eq: ['$account_id', '$$accountId'] },
+                                        { $eq: [{ $toString: '$account_id' }, { $toString: '$$accountId' }] }
+                                    ]
+                                }
+                            }
+                        },
+                        { $sort: { updatedAt: -1, createdAt: -1 } },
+                        { $limit: 1 }
+                    ],
+                    as: 'accountApiKeys'
+                }
+            },
             {
                 $lookup: {
                     from: 'CustomAccessToken',
@@ -132,79 +159,86 @@ export class CompanyService {
             {
                 $addFields: {
                     id: '$_id',
-                    download_api_key: {
+                    apiKeyRecord: { $arrayElemAt: ['$accountApiKeys', 0] },
+                    apiKeyVisible: {
                         $cond: [
-                            { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
-                            '$download_api_key',
-                            null
+                            { $gt: [{ $size: '$accountApiKeys' }, 0] },
+                            { $ifNull: [{ $arrayElemAt: ['$accountApiKeys.visible', 0] }, true] },
+                            {
+                                $cond: [
+                                    { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
+                                    true,
+                                    false
+                                ]
+                            }
                         ]
                     },
                     apiKey: {
                         $ifNull: [
                             {
                                 $cond: [
-                                    { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
-                                    '$download_api_key',
+                                    {
+                                        $and: [
+                                            { $ne: [{ $arrayElemAt: ['$accountApiKeys.download_api_key', 0] }, null] },
+                                            { $ne: [{ $arrayElemAt: ['$accountApiKeys.download_api_key', 0] }, ''] }
+                                        ]
+                                    },
+                                    { $arrayElemAt: ['$accountApiKeys.download_api_key', 0] },
                                     null
                                 ]
                             },
                             {
-                                $let: {
-                                    vars: { firstToken: { $arrayElemAt: ['$downloadTokens', 0] } },
-                                    in: {
+                                $ifNull: [
+                                    {
                                         $cond: [
-                                            { $and: [{ $ne: ['$$firstToken._id', null] }, { $ne: ['$$firstToken._id', ''] }] },
-                                            '$$firstToken._id',
+                                            { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
+                                            '$download_api_key',
                                             null
                                         ]
+                                    },
+                                    {
+                                        $let: {
+                                            vars: { firstToken: { $arrayElemAt: ['$downloadTokens', 0] } },
+                                            in: {
+                                                $cond: [
+                                                    { $and: [{ $ne: ['$$firstToken._id', null] }, { $ne: ['$$firstToken._id', ''] }] },
+                                                    '$$firstToken._id',
+                                                    null
+                                                ]
+                                            }
+                                        }
                                     }
-                                }
-                            }
-                        ]
-                    },
-                    downloadToken: {
-                        $ifNull: [
-                            {
-                                $cond: [
-                                    { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
-                                    '$download_api_key',
-                                    null
                                 ]
-                            },
-                            {
-                                $let: {
-                                    vars: { firstToken: { $arrayElemAt: ['$downloadTokens', 0] } },
-                                    in: {
-                                        $cond: [
-                                            { $and: [{ $ne: ['$$firstToken._id', null] }, { $ne: ['$$firstToken._id', ''] }] },
-                                            '$$firstToken._id',
-                                            null
-                                        ]
-                                    }
-                                }
                             }
                         ]
-                    },
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    download_api_key: '$apiKey',
+                    downloadToken: '$apiKey',
+                    apiKeyActive: '$apiKeyVisible',
                     hasExistingToken: {
-                        $or: [
-                            { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
-                            {
-                                $and: [
-                                    { $gt: [{ $size: '$downloadTokens' }, 0] },
-                                    { $ne: [{ $arrayElemAt: ['$downloadTokens._id', 0] }, null] },
-                                    { $ne: [{ $arrayElemAt: ['$downloadTokens._id', 0] }, ''] }
-                                ]
-                            }
+                        $and: [
+                            { $ne: ['$apiKey', null] },
+                            { $ne: ['$apiKey', ''] }
                         ]
                     },
                     downloadTokenDetails: {
-                        $ifNull: [
+                        $cond: [
                             {
-                                $cond: [
-                                    { $and: [{ $ne: ['$download_api_key', null] }, { $ne: ['$download_api_key', ''] }] },
-                                    { _id: '$download_api_key', principalType: 'download_data', apiKey: '$download_api_key' },
-                                    { $arrayElemAt: ['$downloadTokens', 0] }
+                                $and: [
+                                    { $ne: ['$apiKey', null] },
+                                    { $ne: ['$apiKey', ''] }
                                 ]
+                            },
+                            {
+                                _id: '$apiKey',
+                                apiKey: '$apiKey',
+                                principalType: 'download_data',
+                                visible: '$apiKeyVisible',
+                                is_active: '$apiKeyVisible'
                             },
                             null
                         ]
@@ -213,7 +247,8 @@ export class CompanyService {
             },
             {
                 $project: {
-                    downloadTokens: 0
+                    downloadTokens: 0,
+                    accountApiKeys: 0
                 }
             },
             { $sort: options.sort || { account_name: 1 } }
@@ -586,13 +621,35 @@ export class CompanyService {
         if (!account) {
             throw Object.assign(new Error('Account not found'), { status: 404 });
         }
-        const key = account.download_api_key || null;
+        let keyDoc = null;
+        if (this.apiKeyModel && typeof this.apiKeyModel.findOne === 'function') {
+            keyDoc = await this.apiKeyModel.findOne({ account_id: account._id }).sort({ updatedAt: -1, createdAt: -1 });
+            if (!keyDoc && account.download_api_key) {
+                try {
+                    keyDoc = await this.apiKeyModel.create({
+                        account_id: account._id,
+                        download_api_key: account.download_api_key,
+                        type: 'download_api_key',
+                        visible: true
+                    });
+                } catch {
+                    // Non-blocking fallback
+                }
+            }
+        }
+        const key = keyDoc ? keyDoc.download_api_key : (account.download_api_key || null);
+        const isVisible = keyDoc ? Boolean(keyDoc.visible) : Boolean(key);
         return {
             account_id: account._id,
             account_name: account.account_name,
             api_key: key,
             download_api_key: key,
-            external_token: key
+            external_token: key,
+            type: keyDoc?.type || 'download_api_key',
+            visible: isVisible,
+            is_active: isVisible,
+            createdAt: keyDoc?.createdAt || null,
+            updatedAt: keyDoc?.updatedAt || null
         };
     }
 
@@ -602,14 +659,34 @@ export class CompanyService {
             throw Object.assign(new Error('Account not found'), { status: 404 });
         }
         const accountApiKey = crypto.randomBytes(36).toString('base64url');
+        let keyDoc = null;
+        if (this.apiKeyModel && typeof this.apiKeyModel.findOneAndUpdate === 'function') {
+            keyDoc = await this.apiKeyModel.findOneAndUpdate(
+                { account_id: account._id },
+                {
+                    $set: {
+                        download_api_key: accountApiKey,
+                        type: 'download_api_key',
+                        visible: true
+                    }
+                },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+        }
         account.download_api_key = accountApiKey;
         await account.save();
+
         return {
             account_id: account._id,
             account_name: account.account_name,
             api_key: accountApiKey,
             download_api_key: accountApiKey,
-            external_token: accountApiKey
+            external_token: accountApiKey,
+            type: keyDoc?.type || 'download_api_key',
+            visible: true,
+            is_active: true,
+            createdAt: keyDoc?.createdAt || null,
+            updatedAt: keyDoc?.updatedAt || null
         };
     }
 
@@ -618,21 +695,71 @@ export class CompanyService {
         if (!account) {
             throw Object.assign(new Error('Account not found'), { status: 404 });
         }
-        await this.model.updateOne({ _id: account._id }, { $unset: { download_api_key: '' } });
-        try {
-            const tokenModel = TokenModel(getConnection(this.dbType, 'cmms'));
-            if (tokenModel && typeof tokenModel.deleteMany === 'function') {
-                await tokenModel.deleteMany({
-                    account_id: account._id,
-                    principalType: 'download_data'
-                });
-            }
-        } catch {
-            // Non-blocking fallback
+        // Soft deactivate: set visible = false in account_api_key collection. DO NOT DELETE ANY API KEY!
+        let keyDoc = null;
+        if (this.apiKeyModel && typeof this.apiKeyModel.findOneAndUpdate === 'function') {
+            keyDoc = await this.apiKeyModel.findOneAndUpdate(
+                { account_id: account._id },
+                { $set: { visible: false } },
+                { new: true }
+            );
         }
         return {
             account_id: account._id,
-            account_name: account.account_name
+            account_name: account.account_name,
+            api_key: keyDoc?.download_api_key || account.download_api_key || null,
+            download_api_key: keyDoc?.download_api_key || account.download_api_key || null,
+            visible: false,
+            is_active: false,
+            type: keyDoc?.type || 'download_api_key',
+            message: 'Account API key deactivated successfully'
+        };
+    }
+
+    async toggleApiKeyStatus(id, visible) {
+        const account = await this.model.findById(id);
+        if (!account) {
+            throw Object.assign(new Error('Account not found'), { status: 404 });
+        }
+        let keyDoc = null;
+        if (this.apiKeyModel && typeof this.apiKeyModel.findOne === 'function') {
+            keyDoc = await this.apiKeyModel.findOne({ account_id: account._id }).sort({ updatedAt: -1, createdAt: -1 });
+            if (!keyDoc && account.download_api_key) {
+                try {
+                    keyDoc = await this.apiKeyModel.create({
+                        account_id: account._id,
+                        download_api_key: account.download_api_key,
+                        type: 'download_api_key',
+                        visible: true
+                    });
+                } catch {
+                    // Non-blocking fallback
+                }
+            }
+        }
+        if (!keyDoc && !account.download_api_key) {
+            throw Object.assign(new Error('No API key found for this account'), { status: 404 });
+        }
+        const currentVisible = keyDoc ? Boolean(keyDoc.visible) : true;
+        const nextVisible = typeof visible === 'boolean' ? visible : !currentVisible;
+        if (keyDoc) {
+            keyDoc.visible = nextVisible;
+            if (typeof keyDoc.save === 'function') {
+                await keyDoc.save();
+            } else if (this.apiKeyModel && typeof this.apiKeyModel.updateOne === 'function') {
+                await this.apiKeyModel.updateOne({ _id: keyDoc._id }, { $set: { visible: nextVisible } });
+            }
+        }
+        return {
+            account_id: account._id,
+            account_name: account.account_name,
+            api_key: keyDoc?.download_api_key || account.download_api_key,
+            download_api_key: keyDoc?.download_api_key || account.download_api_key,
+            visible: nextVisible,
+            is_active: nextVisible,
+            type: keyDoc?.type || 'download_api_key',
+            createdAt: keyDoc?.createdAt || null,
+            updatedAt: keyDoc?.updatedAt || null
         };
     }
 

@@ -191,7 +191,19 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).removeApiKey(id);
-      res.status(200).json({ status: true, message: 'Account API key deleted successfully', data });
+      res.status(200).json({ status: true, message: 'Account API key deactivated successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  toggleApiKeyStatus = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const visible = req.body?.visible !== undefined ? Boolean(req.body.visible) : undefined;
+      const data = await this.getService(req).toggleApiKeyStatus(id, visible);
+      const action = data.visible ? 'activated' : 'deactivated';
+      res.status(200).json({ status: true, message: `Account API key ${action} successfully`, data });
     } catch (err) {
       next(err);
     }

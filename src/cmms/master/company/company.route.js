@@ -71,6 +71,10 @@ router.route('/:id/api-key')
 router.route('/:id/api-key/regenerate')
   .post(auth, controller.generateApiKey);
 
+router.route('/:id/api-key/status')
+  .patch(auth, controller.toggleApiKeyStatus)
+  .put(auth, controller.toggleApiKeyStatus);
+
 router.route('/:id/download-api-key')
   .get(auth, controller.getDownloadApiKey)
   .post(auth, controller.generateDownloadApiKey)
