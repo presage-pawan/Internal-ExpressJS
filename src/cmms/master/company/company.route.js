@@ -62,6 +62,20 @@ router.route('/:id/account-role-menu')
 router.route('/:id/account-role-menu/reset')
   .post(auth, resetAccountRoleMenuValidator, validate, controller.resetAccountRoleMenu);
 
+router.route('/:id/api-key')
+  .get(auth, controller.getApiKey)
+  .post(auth, controller.generateApiKey)
+  .put(auth, controller.generateApiKey)
+  .delete(auth, controller.removeApiKey);
+
+router.route('/:id/api-key/regenerate')
+  .post(auth, controller.generateApiKey);
+
+router.route('/:id/download-api-key')
+  .get(auth, controller.getDownloadApiKey)
+  .post(auth, controller.generateDownloadApiKey)
+  .delete(auth, controller.removeDownloadApiKey);
+
 /**
  * @swagger
  * /api/cmms/master/companies/{id}/subscription:

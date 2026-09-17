@@ -1,4 +1,5 @@
 import { TokenModel } from '../../schemas/user-token.model.js';
+import { AccountModel } from '../../schemas/company.model.js';
 import { getConnection } from '../../../_db/index.js';
 import mongoose from 'mongoose';
 
@@ -10,6 +11,15 @@ export class UserTokenService {
     get model() {
         const connection = getConnection(this.dbType, 'cmms');
         return TokenModel(connection);
+    }
+
+    get accountModel() {
+        try {
+            const connection = getConnection(this.dbType, 'cmms');
+            return AccountModel(connection);
+        } catch {
+            return null;
+        }
     }
 
     // ─── GET ALL (paginated + filtered) ──────────────────────────────────────
@@ -120,7 +130,21 @@ export class UserTokenService {
         if (principalType) {
             filter.principalType = principalType;
         }
-        return this.model.deleteMany(filter);
+        const result = await this.model.deleteMany(filter);
+        if (!principalType || principalType === 'download_data') {
+            try {
+                const accModel = this.accountModel;
+                if (accModel && typeof accModel.updateOne === 'function') {
+                    await accModel.updateOne(
+                        { _id: new mongoose.Types.ObjectId(accountId) },
+                        { $unset: { download_api_key: '' } }
+                    );
+                }
+            } catch {
+                // Non-blocking fallback if connection or model is not initialized
+            }
+        }
+        return result;
     }
 }
 

@@ -351,4 +351,57 @@ test('CompanyService.findAllWithTokens executes aggregation pipeline with lookup
   assert.ok(capturedPipeline.some((stage) => stage.$lookup && stage.$lookup.from === 'CustomAccessToken'));
 });
 
+test('CompanyService API key management (getApiKey, generateApiKey, removeApiKey)', async () => {
+  const service = new CompanyService('test');
+  const accountId = new mongoose.Types.ObjectId();
+  const mockDoc = {
+    _id: accountId,
+    account_name: 'Acme Test Corp',
+    download_api_key: 'existing-key-123',
+    async save() { return this; }
+  };
+
+  let unsetQuery = null;
+  service._model = {
+    findById(id) {
+      return {
+        select(fields) {
+          return mockDoc;
+        }
+      };
+    },
+    updateOne(filter, update) {
+      unsetQuery = { filter, update };
+      return { acknowledged: true };
+    }
+  };
+  Object.defineProperty(service, 'model', { get() { return this._model; } });
+
+  // 1. Get
+  const fetched = await service.getApiKey(accountId);
+  assert.equal(fetched.account_id, accountId);
+  assert.equal(fetched.api_key, 'existing-key-123');
+  assert.equal(fetched.download_api_key, 'existing-key-123');
+  assert.equal(fetched.external_token, 'existing-key-123');
+
+  // Also test backward-compatible alias
+  const fetchedLegacy = await service.getDownloadApiKey(accountId);
+  assert.equal(fetchedLegacy.api_key, 'existing-key-123');
+
+  // 2. Generate
+  service._model.findById = (id) => mockDoc;
+  const generated = await service.generateApiKey(accountId);
+  assert.equal(generated.account_id, accountId);
+  assert.ok(generated.api_key && generated.api_key.length > 20);
+  assert.equal(generated.api_key, generated.download_api_key);
+  assert.equal(generated.external_token, generated.api_key);
+  assert.equal(mockDoc.download_api_key, generated.api_key);
+
+  // 3. Remove
+  const removed = await service.removeApiKey(accountId);
+  assert.equal(removed.account_id, accountId);
+  assert.deepEqual(unsetQuery.update, { $unset: { download_api_key: '' } });
+});
+
+
 

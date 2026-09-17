@@ -166,4 +166,64 @@ export class CompanyController {
       next(err);
     }
   };
+
+  getApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).getApiKey(id);
+      res.status(200).json({ status: true, message: 'Account API key fetched successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  generateApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).generateApiKey(id);
+      res.status(200).json({ status: true, message: 'Account API key generated successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  removeApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).removeApiKey(id);
+      res.status(200).json({ status: true, message: 'Account API key deleted successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getDownloadApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).getDownloadApiKey(id);
+      res.status(200).json({ status: true, message: 'Account download API key fetched successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  generateDownloadApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).generateDownloadApiKey(id);
+      res.status(200).json({ status: true, message: 'Account download API key generated successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  removeDownloadApiKey = async (req, res, next) => {
+    try {
+      const id = validateObjectId(req.params.id);
+      const data = await this.getService(req).removeDownloadApiKey(id);
+      res.status(200).json({ status: true, message: 'Account download API key deleted successfully', data });
+    } catch (err) {
+      next(err);
+    }
+  };
 }
