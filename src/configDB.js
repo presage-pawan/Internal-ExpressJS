@@ -19,6 +19,7 @@ export const PRODUCTION_DATABASE = {
   password: process.env.PRODUCTION_DB_PASSWORD,
   databaseCMMSName: process.env.CMMS_DB_NAME,
   databaseWebsiteName: process.env.WEBSITE_DB_NAME,
+  databaseOpcuaName: process.env.OPCUA_DB_NAME,
   authSource: process.env.DB_AUTH_SOURCE || "admin"
 };
 
