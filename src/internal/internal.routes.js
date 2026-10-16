@@ -7,6 +7,7 @@ import assignedCompanyRoutes from './assigned-companies/assigned-companies.route
 import invoiceRoutes from './invoice/invoice.route.js';
 import salesLeadRoutes from './sales-lead/sales-lead.route.js';
 import sapMappingRoutes from './sap-mapping/sap-mapping.route.js';
+import knowledgeBaseRoutes from './knowledge-base/knowledge-base.route.js';
 
 export default () => {
     const router = express.Router();
@@ -18,5 +19,6 @@ export default () => {
     router.use('/invoices', invoiceRoutes);
     router.use('/sales-leads', salesLeadRoutes);
     router.use('/sap-mappings', sapMappingRoutes);
+    router.use('/knowledge-base', knowledgeBaseRoutes());
     return router;
 };
