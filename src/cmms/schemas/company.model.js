@@ -115,7 +115,8 @@ const AccountSchema = new Schema(
         subscription_plan: ''
       })
     },
-    visible: { type: Boolean, default: true }
+    visible: { type: Boolean, default: true },
+    download_api_key: { type: String, trim: true, default: null }
   },
   {
     collection: 'account_master',

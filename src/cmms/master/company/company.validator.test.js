@@ -349,6 +349,105 @@ test('CompanyService.findAllWithTokens executes aggregation pipeline with lookup
   assert.equal(results[0].downloadToken, 'token-abc');
   assert.equal(results[0].hasExistingToken, true);
   assert.ok(capturedPipeline.some((stage) => stage.$lookup && stage.$lookup.from === 'CustomAccessToken'));
+  assert.ok(capturedPipeline.some((stage) => stage.$lookup && stage.$lookup.from === 'account_api_key'));
 });
+
+test('CompanyService API key management via account_api_key (getApiKey, generateApiKey, removeApiKey, toggleApiKeyStatus)', async () => {
+  const service = new CompanyService('test');
+  const accountId = new mongoose.Types.ObjectId();
+  const mockDoc = {
+    _id: accountId,
+    account_name: 'Acme Test Corp',
+    download_api_key: 'existing-key-123',
+    async save() { return this; }
+  };
+
+  let apiKeyRecord = {
+    _id: new mongoose.Types.ObjectId(),
+    account_id: accountId,
+    download_api_key: 'existing-key-123',
+    type: 'download_api_key',
+    visible: true,
+    async save() { return this; }
+  };
+
+  service._model = {
+    findById(id) {
+      return {
+        select(fields) {
+          return mockDoc;
+        }
+      };
+    }
+  };
+  service._apiKeyModel = {
+    findOne({ account_id }) {
+      return {
+        sort() {
+          return apiKeyRecord;
+        }
+      };
+    },
+    findOneAndUpdate(filter, update, options) {
+      if (update.$set) {
+        Object.assign(apiKeyRecord, update.$set);
+      }
+      return apiKeyRecord;
+    },
+    updateOne(filter, update) {
+      if (update.$set) {
+        Object.assign(apiKeyRecord, update.$set);
+      }
+      return { acknowledged: true };
+    }
+  };
+  Object.defineProperty(service, 'model', { get() { return this._model; } });
+  Object.defineProperty(service, 'apiKeyModel', { get() { return this._apiKeyModel; } });
+
+  // 1. Get
+  const fetched = await service.getApiKey(accountId);
+  assert.equal(fetched.account_id, accountId);
+  assert.equal(fetched.api_key, 'existing-key-123');
+  assert.equal(fetched.download_api_key, 'existing-key-123');
+  assert.equal(fetched.visible, true);
+  assert.equal(fetched.is_active, true);
+  assert.equal(fetched.type, 'download_api_key');
+
+  // Also test backward-compatible alias
+  const fetchedLegacy = await service.getDownloadApiKey(accountId);
+  assert.equal(fetchedLegacy.api_key, 'existing-key-123');
+
+  // 2. Generate
+  service._model.findById = (id) => mockDoc;
+  const generated = await service.generateApiKey(accountId);
+  assert.equal(generated.account_id, accountId);
+  assert.ok(generated.api_key && generated.api_key.length > 20);
+  assert.equal(generated.visible, true);
+  assert.equal(generated.is_active, true);
+  assert.equal(apiKeyRecord.download_api_key, generated.api_key);
+  assert.equal(mockDoc.download_api_key, generated.api_key);
+
+  // 3. Remove (soft deactivate: sets visible = false, does not delete)
+  const removed = await service.removeApiKey(accountId);
+  assert.equal(removed.account_id, accountId);
+  assert.equal(removed.visible, false);
+  assert.equal(removed.is_active, false);
+  assert.equal(apiKeyRecord.visible, false);
+  // Verify key string is still preserved and not deleted
+  assert.ok(apiKeyRecord.download_api_key);
+
+  // 4. Toggle status (activate back)
+  const reactivated = await service.toggleApiKeyStatus(accountId, true);
+  assert.equal(reactivated.visible, true);
+  assert.equal(reactivated.is_active, true);
+  assert.equal(apiKeyRecord.visible, true);
+
+  // 5. Toggle status without boolean argument (inverts to false)
+  const inverted = await service.toggleApiKeyStatus(accountId);
+  assert.equal(inverted.visible, false);
+  assert.equal(inverted.is_active, false);
+  assert.equal(apiKeyRecord.visible, false);
+});
+
 
 
