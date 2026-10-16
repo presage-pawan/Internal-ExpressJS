@@ -105,21 +105,25 @@ export class RoleManager {
   };
 
   static async getRoleMenuData(role) {
+    const enabled = role === 'admin';
+    const knowledgeBase = { master_knowledge_base: { level: 0, view: enabled },
+      knowledge_base: { level: 1, parent: 'master_knowledge_base', view: enabled,
+        add: enabled, edit: enabled, delete: enabled, import: false, export: false } };
     switch (role) {
       case "admin": {
-        return this.ADMIN_ROLES;
+        return { ...this.ADMIN_ROLES, ...knowledgeBase };
       }
       case "employee": {
-        return this.EMPLOYEE_ROLES;
+        return { ...this.EMPLOYEE_ROLES, ...knowledgeBase };
       }
       case "worker": {
-        return this.EMPLOYEE_ROLES;
+        return { ...this.EMPLOYEE_ROLES, ...knowledgeBase };
       }
       case "manager": {
-        return this.MANAGER_ROLES;
+        return { ...this.MANAGER_ROLES, ...knowledgeBase };
       }
       default: {
-        return this.EMPLOYEE_ROLES;
+        return { ...this.EMPLOYEE_ROLES, ...knowledgeBase };
       }
     }
   }
