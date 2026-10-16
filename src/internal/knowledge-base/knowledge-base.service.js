@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
@@ -16,8 +17,18 @@ const validId = id => {
 };
 
 export const guideFilesDirectory = () => path.resolve(
-  process.env.KNOWLEDGE_BASE_FILES_DIR || path.join(process.cwd(), 'knowledge_base')
+  process.env.KNOWLEDGE_BASE_FILES_DIR || path.join(process.cwd(), 'uploadFiles', 'knowledge_base')
 );
+
+export const guideMirrorFilesDirectory = () => path.resolve(
+  process.env.KNOWLEDGE_BASE_MIRROR_FILES_DIR ||
+  path.join(process.cwd(), '..', 'CMMS_API', 'uploadFiles', 'knowledge_base')
+);
+
+const guideStorageDirectories = () => [guideFilesDirectory(), guideMirrorFilesDirectory()]
+  .filter((directory, index, directories) => directories.findIndex(candidate =>
+    path.normalize(candidate).toLowerCase() === path.normalize(directory).toLowerCase()
+  ) === index);
 
 export async function resolveGuidePdf(fileName, root = guideFilesDirectory()) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.pdf$/i.test(fileName)) throw unavailable();
@@ -42,6 +53,10 @@ export async function resolveGuidePdf(fileName, root = guideFilesDirectory()) {
     if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error?.code || '')) throw unavailable();
     throw error;
   }
+}
+
+async function resolveGuidePdfCopies(fileName) {
+  return Promise.all(guideStorageDirectories().map(directory => resolveGuidePdf(fileName, directory)));
 }
 
 export function guideVisibility(value) {
@@ -76,19 +91,32 @@ export function validateGuidePdf(file) {
 }
 
 async function storePdf(file) {
-  const root = guideFilesDirectory();
-  await fs.mkdir(root, { recursive: true });
+  const directories = guideStorageDirectories();
+  await Promise.all(directories.map(directory => fs.mkdir(directory, { recursive: true })));
   const fileName = `${randomUUID()}.pdf`;
-  await fs.writeFile(path.join(root, fileName), file.buffer, { flag: 'wx' });
-  return fileName;
+  const paths = directories.map(directory => path.join(directory, fileName));
+  try {
+    await fs.writeFile(paths[0], file.buffer, { flag: 'wx' });
+    await Promise.all(paths.slice(1).map(destination =>
+      fs.copyFile(paths[0], destination, fsConstants.COPYFILE_EXCL)
+    ));
+    return fileName;
+  } catch (error) {
+    await Promise.allSettled(paths.map(filePath => fs.unlink(filePath)));
+    throw error;
+  }
 }
 
 async function removePdf(fileName) {
-  try {
-    await fs.unlink(await resolveGuidePdf(fileName));
-  } catch (error) {
-    if (error?.status !== 404) console.warn('Could not remove an unused knowledge-base PDF:', fileName);
-  }
+  await Promise.all(guideStorageDirectories().map(async directory => {
+    try {
+      await fs.unlink(await resolveGuidePdf(fileName, directory));
+    } catch (error) {
+      if (error?.status !== 404) {
+        console.warn('Could not remove an unused knowledge-base PDF:', path.join(directory, fileName));
+      }
+    }
+  }));
 }
 
 export function publisherGuide(guide) {
@@ -150,7 +178,7 @@ export class KnowledgeBaseService {
     const revision = expectedRevision(body?.updatedAt);
     const current = await this.find(id);
     const pdf = file ? validateGuidePdf(file) : undefined;
-    if (values.published && !pdf) await resolveGuidePdf(current.fileName);
+    if (values.published && !pdf) await resolveGuidePdfCopies(current.fileName);
     const fileName = pdf ? await storePdf(pdf) : undefined;
     let guide;
     try {
@@ -174,7 +202,7 @@ export class KnowledgeBaseService {
     const published = guideVisibility(body?.published);
     const revision = expectedRevision(body?.updatedAt);
     const current = await this.find(id);
-    if (published) await resolveGuidePdf(current.fileName);
+    if (published) await resolveGuidePdfCopies(current.fileName);
     const guide = await this.Model.findOneAndUpdate({ _id: validId(id), updatedAt: revision }, {
       $set: { published, updatedByInternalUser: publisherId }
     }, { returnDocument: 'after', runValidators: true }).lean().exec();

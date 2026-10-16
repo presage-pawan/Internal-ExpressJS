@@ -11,6 +11,11 @@ The internal publishing API is mounted at `/api/internal/knowledge-base`. The en
 
 View permission is required for listing and previewing. Add, Edit, and Delete permissions protect their corresponding mutations. Explicit role-menu denials apply to administrators as well.
 
-Guide metadata uses the production CMMS database's `knowledge_base_guides` collection so the customer-facing CMMS API reads the same records. Set `KNOWLEDGE_BASE_FILES_DIR` in both `INTERNAL_API` and `CMMS_API` to the same absolute shared directory. `INTERNAL_API` requires read/write access; `CMMS_API` requires read access. Existing installations should point this setting at the directory that already contains their guide PDFs before enabling this route.
+Guide metadata uses the production CMMS database's `knowledge_base_guides` collection so the customer-facing CMMS API reads the same records. Every PDF is stored under the same generated filename in both of these default directories:
 
-PDFs must have a `.pdf` filename, a PDF signature, and a size of at most 20 MB. File replacement and deletion use the submitted `updatedAt` value for optimistic concurrency; conflicts return 409. Failed database writes clean up newly written files and leave the previous PDF intact.
+- `INTERNAL_API/uploadFiles/knowledge_base`
+- `CMMS_API/uploadFiles/knowledge_base`
+
+Set `KNOWLEDGE_BASE_FILES_DIR` to override the primary directory and `KNOWLEDGE_BASE_MIRROR_FILES_DIR` to override the CMMS mirror directory. `INTERNAL_API` requires read/write access to both locations. If `CMMS_API` reads files through its knowledge-base service, set that project's `KNOWLEDGE_BASE_FILES_DIR` to its mirrored `uploadFiles/knowledge_base` directory.
+
+PDFs must have a `.pdf` filename, a PDF signature, and a size of at most 20 MB. File replacement and deletion use the submitted `updatedAt` value for optimistic concurrency; conflicts return 409. Uploads and replacements stage both copies before changing the database. Failed file or database writes clean up the newly staged filename from both directories and leave the previous PDF intact. Successful replacement and deletion remove the previous filename from both directories.
