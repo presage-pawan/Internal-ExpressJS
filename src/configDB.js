@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+export const ENVIRONMENT = process.env.NODE_ENV || "development";
+
 /* ===================== DATABASE 1 ===================== */
 export const STAGING_DATABASE = {
   host: process.env.STAGING_DB_HOST,

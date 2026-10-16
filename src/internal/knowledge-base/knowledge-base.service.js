@@ -16,14 +16,9 @@ const validId = id => {
   return new Types.ObjectId(id);
 };
 
-export const guideFilesDirectory = () => path.resolve(
-  process.env.KNOWLEDGE_BASE_FILES_DIR || path.join(process.cwd(), 'uploadFiles', 'knowledge_base')
-);
+export const guideFilesDirectory = () => path.resolve(path.join(process.cwd(), 'uploadFiles', 'knowledge_base'));
 
-export const guideMirrorFilesDirectory = () => path.resolve(
-  process.env.KNOWLEDGE_BASE_MIRROR_FILES_DIR ||
-  path.join(process.cwd(), '..', 'CMMS_API', 'uploadFiles', 'knowledge_base')
-);
+export const guideMirrorFilesDirectory = () => path.resolve(path.join(process.cwd(), '..', ENVIRONMENT === 'production' ? 'express' : 'CMMS_API', 'uploadFiles', 'knowledge_base'));
 
 const guideStorageDirectories = () => [guideFilesDirectory(), guideMirrorFilesDirectory()]
   .filter((directory, index, directories) => directories.findIndex(candidate =>
