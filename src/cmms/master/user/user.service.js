@@ -1,5 +1,6 @@
 import { UserModel } from '../../schemas/users.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { normalizeExpiryUpdate, withPasswordExpiry } from './password-expiry.js';
 
 export class UserService {
 
@@ -16,20 +17,22 @@ export class UserService {
     return this.model.create(data);
   }
 
-  getAllUsers(filter = {}, projection = '-password') {
-    return this.model.find(filter, projection).exec();
+  async getAllUsers(filter = {}, projection = '-password') {
+    const users = await this.model.find(filter, projection).exec();
+    return users.map(user => withPasswordExpiry(user));
   }
 
-  getUserById(id) {
-    return this.model.findById(id).select('-password').exec();
+  async getUserById(id) {
+    return withPasswordExpiry(await this.model.findById(id).select('-password').exec());
   }
 
-  updateUser(id, data) {
-    return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true }).exec();
+  async updateUser(id, data) {
+    const payload = normalizeExpiryUpdate(data);
+    return withPasswordExpiry(await this.model.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true }).exec());
   }
 
-  updatePartial(id, data) {
-    return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true }).exec();
+  async updatePartial(id, data) {
+    return this.updateUser(id, data);
   }
 
   deleteUser(id, updatedBy) {

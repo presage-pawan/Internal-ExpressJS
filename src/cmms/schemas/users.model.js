@@ -43,6 +43,8 @@ const UserSchema = new Schema(
     lastName: { type: String, trim: true },
     username: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true, select: false },
+    // Existing CMMS field; mapping only, with no default, index or migration.
+    passwordExpiredAt: { type: Date },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     user_status: { type: String, enum: STATUS, default: 'active' },
     user_role: { type: String, enum: ROLE, default: 'employee', lowercase: true, trim: true },

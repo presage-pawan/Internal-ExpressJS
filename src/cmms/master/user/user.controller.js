@@ -1,10 +1,23 @@
 import { validateObjectId } from '../../../utils/helper.js';
 import { UserService } from './user.service.js';
 import { PasswordService } from '../../../utils/bcrypt.js';
+import { RoleMenuService } from '../../../internal/role-menu/role-menu.service.js';
 
 export class UserController {
 
   getService = (req) => new UserService(req.db_type);
+  getRoleMenuService = (req) => new RoleMenuService(req.db_type);
+
+  assertCanUpdateExpiry = async (req) => {
+    if (!Object.hasOwn(req.body, 'passwordExpiredAt') && !Object.hasOwn(req.body, 'passwordExpiryAction')) return;
+    if (req.user?.user_role === 'admin') return;
+    const roles = await this.getRoleMenuService(req).getRoles({
+      userId: req.user?._id || req.user?.id, roleName: req.user?.user_role, visible: true
+    });
+    if (!roles?.[0]?.roleMenu?.user_management?.edit) {
+      throw Object.assign(new Error('Forbidden'), { status: 403 });
+    }
+  };
 
   getAllUsers = async (req, res, next) => {
     try {
@@ -49,6 +62,7 @@ export class UserController {
 
   updateUser = async (req, res, next) => {
     try {
+      await this.assertCanUpdateExpiry(req);
       const user = await this.getService(req).updateUser(validateObjectId(req.params.id), req.body);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User updated successfully', data: user });
@@ -59,6 +73,7 @@ export class UserController {
 
   updatePartial = async (req, res, next) => {
     try {
+      await this.assertCanUpdateExpiry(req);
       const user = await this.getService(req).updatePartial(validateObjectId(req.params.id), req.body);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User updated successfully', data: user });

@@ -1,4 +1,5 @@
 import { body } from 'express-validator';
+import { normalizeExpiryUpdate } from './password-expiry.js';
 
 export const createMasterUserValidator = [
     body('firstName').trim().notEmpty().withMessage('First Name is required'),
@@ -15,6 +16,7 @@ export const createMasterUserValidator = [
 ];
 
 export const updateMasterUserValidator = [
+    body().custom(value => { normalizeExpiryUpdate(value); return true; }),
     body('firstName').optional().trim().notEmpty(),
     body('lastName').optional().trim().isString(),
     body('username').optional().trim().notEmpty(),
