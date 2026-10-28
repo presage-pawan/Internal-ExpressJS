@@ -8,6 +8,7 @@ class UploadController {
         try {
             await uploadService.validateUploadedFiles(files);
             const data = uploadService.uploadFiles(req);
+            await uploadService.recordPrivateUploads(req, data);
             return res.status(200).json({
                 status: true,
                 message: 'Files uploaded successfully',
@@ -34,9 +35,13 @@ class UploadController {
 
     downloadPrivate = async (req, res, next) => {
         try {
-            const filePath = uploadService.resolvePrivateFile(req.params.folderName || '', req.params.fileName);
+            const folderName = req.params.folderName || '';
+            const fileName = req.params.fileName;
+            await uploadService.authorizePrivateDownload(req, folderName, fileName);
+            const filePath = uploadService.resolvePrivateFile(folderName, fileName);
             await fs.promises.access(filePath, fs.constants.R_OK);
             res.setHeader('Cache-Control', 'private, no-store');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
             return res.sendFile(filePath);
         } catch (err) {
             if (err?.code === 'ENOENT') return next(Object.assign(new Error('File not found'), { status: 404 }));
