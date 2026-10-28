@@ -1,5 +1,6 @@
 import { SchedulerModel } from '../../schemas/schedule.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 import mongoose from 'mongoose';
 
 export class ScheduleService {
@@ -24,7 +25,7 @@ export class ScheduleService {
 
     async getById(id, options = {}) {
         if (!mongoose.Types.ObjectId.isValid(id)) throw Object.assign(new Error('Invalid ID'), { status: 400 });
-        let query = this.model.findById(id);
+        let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'account_id'));
         if (options.include) {
             options.include.split(',').forEach(field => {
                 query = query.populate(field.trim());
@@ -38,18 +39,18 @@ export class ScheduleService {
         return schedule.save();
     }
 
-    async update(id, data) {
+    async update(id, data, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) throw Object.assign(new Error('Invalid ID'), { status: 400 });
-        return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), data, { new: true, runValidators: true });
     }
 
-    async updatePartial(id, data) {
+    async updatePartial(id, data, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) throw Object.assign(new Error('Invalid ID'), { status: 400 });
-        return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { $set: data }, { new: true, runValidators: true });
     }
 
-    async delete(id, updatedBy) {
+    async delete(id, updatedBy, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) throw Object.assign(new Error('Invalid ID'), { status: 400 });
-        return this.model.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { visible: false, updatedBy }, { new: true });
     }
 }
