@@ -1,6 +1,7 @@
 import { RoleMenuModel } from '../../schemas/role-menu.model.js';
 import { getConnection } from '../../../_db/index.js';
 import mongoose from 'mongoose';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class RoleMenuService {
     constructor(dbType = 'production') {
@@ -33,11 +34,11 @@ export class RoleMenuService {
     }
 
     // ─── GET BY ID ────────────────────────────────────────────────────────────
-    async getById(id) {
+    async getById(id, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        return this.model.findById(id)
+        return this.model.findOne(buildResourceScopeFilter(id, companyId, 'account_id'))
             .populate({ path: 'user_id',    model: 'User',    select: 'id firstName lastName email user_role user_status' })
             .populate({ path: 'account_id', model: 'Account', select: 'id account_name' })
             .lean();
@@ -48,7 +49,10 @@ export class RoleMenuService {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw Object.assign(new Error('Invalid userId'), { status: 400 });
         }
-        return this.getAll({ user_id: new mongoose.Types.ObjectId(userId) }, options);
+        return this.getAll({
+            user_id: new mongoose.Types.ObjectId(userId),
+            ...(options.companyId ? { account_id: options.companyId } : {})
+        }, options);
     }
 
     // ─── CREATE ───────────────────────────────────────────────────────────────
@@ -58,27 +62,27 @@ export class RoleMenuService {
     }
 
     // ─── FULL UPDATE (PUT) ────────────────────────────────────────────────────
-    async update(id, data) {
+    async update(id, data, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), data, { new: true, runValidators: true });
     }
 
     // ─── PARTIAL UPDATE (PATCH) ───────────────────────────────────────────────
-    async updatePartial(id, data) {
+    async updatePartial(id, data, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { $set: data }, { new: true, runValidators: true });
     }
 
     // ─── DELETE ───────────────────────────────────────────────────────────────
-    async delete(id) {
+    async delete(id, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        return this.model.findByIdAndDelete(id);
+        return this.model.findOneAndDelete(buildResourceScopeFilter(id, companyId, 'account_id'));
     }
 }
 
