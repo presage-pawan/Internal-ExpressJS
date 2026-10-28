@@ -3,18 +3,21 @@ import { uploadService } from './upload.service.js';
 
 class UploadController {
 
-    uploadFiles(req, res, next) {
+    uploadFiles = async (req, res, next) => {
+        const files = Array.isArray(req.files) ? req.files : [];
         try {
+            await uploadService.validateUploadedFiles(files);
             const data = uploadService.uploadFiles(req);
-            res.status(200).json({
+            return res.status(200).json({
                 status: true,
                 message: 'Files uploaded successfully',
                 data
             });
         } catch (err) {
-            next(err);
+            await uploadService.cleanupUploadedFiles(files);
+            return next(err);
         }
-    }
+    };
 
     async uploadBase64(req, res, next) {
         try {
