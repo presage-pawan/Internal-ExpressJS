@@ -1,9 +1,12 @@
+import fs from 'node:fs/promises';
 import path from 'path';
 import { UploadFilesService } from '../../utils/upload.js';
 import { classifyUploadFolder, resolveUploadPath } from './upload-path-policy.js';
+import { extensionForUploadedFile, matchesUploadSignature } from './upload-signature-policy.js';
 
 const PUBLIC_UPLOAD_ROOT = path.join(process.cwd(), 'blogs');
 const PRIVATE_UPLOAD_ROOT = path.join(process.cwd(), 'uploadFiles');
+const SIGNATURE_READ_BYTES = 16;
 
 class UploadService {
 
@@ -22,6 +25,34 @@ class UploadService {
             container: folderName || null,
             visibility: classifyUploadFolder(folderName)
         }));
+    }
+
+    async validateUploadedFiles(files = []) {
+        for (const file of files) {
+            if (!file?.path) {
+                throw Object.assign(new Error('Uploaded file path is unavailable'), { status: 500 });
+            }
+            const handle = await fs.open(file.path, 'r');
+            try {
+                const buffer = Buffer.alloc(SIGNATURE_READ_BYTES);
+                const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+                const extension = extensionForUploadedFile(file);
+                if (!matchesUploadSignature(buffer.subarray(0, bytesRead), extension)) {
+                    throw Object.assign(new Error('Uploaded file content does not match its declared type'), { status: 415 });
+                }
+            } finally {
+                await handle.close();
+            }
+        }
+    }
+
+    async cleanupUploadedFiles(files = []) {
+        await Promise.allSettled(
+            files
+                .map(file => file?.path)
+                .filter(Boolean)
+                .map(filePath => fs.unlink(filePath))
+        );
     }
 
     async uploadBase64(req) {
