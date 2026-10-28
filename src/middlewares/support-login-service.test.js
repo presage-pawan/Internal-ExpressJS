@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidSupportLoginServiceKey } from './support-login-service.js';
+import { isExactSecretMatch } from './support-login-secret.js';
 
 test('support-login service credential requires an exact configured value', () => {
-  assert.equal(isValidSupportLoginServiceKey('shared-secret', 'shared-secret'), true);
-  assert.equal(isValidSupportLoginServiceKey('wrong-secret', 'shared-secret'), false);
-  assert.equal(isValidSupportLoginServiceKey('', 'shared-secret'), false);
+  assert.equal(isExactSecretMatch('shared-secret', 'shared-secret'), true);
+  assert.equal(isExactSecretMatch('wrong-secret', 'shared-secret'), false);
+  assert.equal(isExactSecretMatch('', 'shared-secret'), false);
 });
