@@ -3,6 +3,7 @@ import { auth } from '../../auth.js';
 import { validate } from '../../middlewares/validate.js';
 import { createRoleMenuValidator, updateRoleMenuValidator, updatePartialRoleMenuValidator } from './role-menu.validator.js';
 import { RoleMenuController } from './role-menu.controller.js';
+import { requireInternalAction } from '../../middlewares/authorization.js';
 
 const router = Router();
 const controller = new RoleMenuController();
@@ -66,7 +67,7 @@ router.get('/:id', auth, controller.getRoleById);
  *       201:
  *         description: Role menu created
  */
-router.post('/', auth, createRoleMenuValidator, validate, controller.createRole);
+router.post('/', auth, requireInternalAction('internal.roles.manage'), createRoleMenuValidator, validate, controller.createRole);
 
 /**
  * @swagger
@@ -126,8 +127,8 @@ router.post('/', auth, createRoleMenuValidator, validate, controller.createRole)
  *       200:
  *         description: Role deleted
  */
-router.put('/:id', auth, updateRoleMenuValidator, validate, controller.updateRole);
-router.patch('/:id', auth, updatePartialRoleMenuValidator, validate, controller.updatePartialRole);
-router.delete('/:id', auth, controller.deleteRole);
+router.put('/:id', auth, requireInternalAction('internal.roles.manage'), updateRoleMenuValidator, validate, controller.updateRole);
+router.patch('/:id', auth, requireInternalAction('internal.roles.manage'), updatePartialRoleMenuValidator, validate, controller.updatePartialRole);
+router.delete('/:id', auth, requireInternalAction('internal.roles.manage'), controller.deleteRole);
 
 export default router;
