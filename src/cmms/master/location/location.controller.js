@@ -1,4 +1,5 @@
 import { validateObjectId } from '../../../utils/helper.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 import { LocationService } from './location.service.js';
 
 export class LocationController {
@@ -28,7 +29,7 @@ export class LocationController {
     try {
       const { id } = req.params;
       const { include } = req.query;
-      const location = await this.getService(req).getById(id, { include });
+      const location = await this.getService(req).getById(id, { include, companyId: req.companyId });
       if (!location) {
         throw Object.assign(new Error('Location not found'), { status: 404 });
       }
@@ -41,7 +42,7 @@ export class LocationController {
   /* ================= CREATE ================= */
   create = async (req, res, next) => {
     try {
-      const location = await this.getService(req).create({ ...req.body, createdBy: req.user.id });
+      const location = await this.getService(req).create({ ...bindCompanyPayload(req.body, req.companyId, 'account_id'), createdBy: req.user.id });
       if (!location) {
         throw Object.assign(new Error('Location not found'), { status: 404 });
       }
@@ -54,7 +55,7 @@ export class LocationController {
   /* ================= UPDATE ================= */
   update = async (req, res, next) => {
     try {
-      const location = await this.getService(req).update(validateObjectId(req.params.id), { ...req.body, updatedBy: req.user.id });
+      const location = await this.getService(req).update(validateObjectId(req.params.id), { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
       if (!location) {
         throw Object.assign(new Error('Location not found'), { status: 404 });
       }
@@ -67,7 +68,7 @@ export class LocationController {
   /* ================= PARTIAL UPDATE ================= */
   updatePartial = async (req, res, next) => {
     try {
-      const location = await this.getService(req).updatePartial(validateObjectId(req.params.id), { ...req.body, updatedBy: req.user.id });
+      const location = await this.getService(req).updatePartial(validateObjectId(req.params.id), { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
       if (!location) {
         throw Object.assign(new Error('Location not found'), { status: 404 });
       }
@@ -80,7 +81,7 @@ export class LocationController {
   /* ================= DELETE ================= */
   delete = async (req, res, next) => {
     try {
-      const location = await this.getService(req).delete(validateObjectId(req.params.id), req.user.id);
+      const location = await this.getService(req).delete(validateObjectId(req.params.id), req.user.id, req.companyId);
       if (!location) {
         throw Object.assign(new Error('Location not found'), { status: 404 });
       }
