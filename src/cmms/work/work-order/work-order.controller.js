@@ -19,7 +19,7 @@ export class WorkOrderController {
         try {
             const { id } = req.params;
             const { include } = req.query;
-            const data = await this.getService(req).getById(id, { include });
+            const data = await this.getService(req).getById(id, { include, companyId: req.companyId });
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, data });
         } catch (err) {
@@ -29,7 +29,7 @@ export class WorkOrderController {
 
     create = async (req, res, next) => {
         try {
-            const data = await this.getService(req).create({ ...req.body, createdBy: req.user.id, account_id: req.companyId });
+            const data = await this.getService(req).create({ ...req.body, createdBy: req.user.id, account_id: req.companyId || req.body.account_id });
             res.status(201).json({ status: true, message: 'WorkOrder created', data });
         } catch (err) {
             next(err);
@@ -39,7 +39,7 @@ export class WorkOrderController {
     update = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id });
+            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'WorkOrder updated', data });
         } catch (err) {
@@ -50,7 +50,7 @@ export class WorkOrderController {
     updatePartial = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id });
+            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'WorkOrder updated', data });
         } catch (err) {
@@ -61,7 +61,7 @@ export class WorkOrderController {
     delete = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).delete(id, req.user.id);
+            const data = await this.getService(req).delete(id, req.user.id, req.companyId);
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'WorkOrder deleted' });
         } catch (err) {
