@@ -4,14 +4,15 @@ import { companyContext } from '../../middlewares/company.js';
 import mapUserLocationRoutes from './map-user-location/map-user-location.route.js';
 import mapUserWorkOrderRoutes from './map-user-work-order/map-user-work-order.route.js';
 import mapUserInspectionRoutes from './map-user-inspection/map-user-inspection.route.js';
+import { requireInternalAction } from '../../middlewares/authorization.js';
 
 export default () => {
     const router = express.Router();
 
-    router.use('/map-user', mapUserRoutes);
-    router.use('/map-user-inspection', mapUserInspectionRoutes);
-    router.use('/map-user-location', mapUserLocationRoutes);
-    router.use('/map-user-work-orders', mapUserWorkOrderRoutes);
+    router.use('/map-user', requireInternalAction('cmms.global.manage'), mapUserRoutes);
+    router.use('/map-user-inspection', requireInternalAction('cmms.global.manage'), mapUserInspectionRoutes);
+    router.use('/map-user-location', requireInternalAction('cmms.global.manage'), mapUserLocationRoutes);
+    router.use('/map-user-work-orders', requireInternalAction('cmms.global.manage'), mapUserWorkOrderRoutes);
 
     const companyRouter = express.Router({ mergeParams: true });
 
