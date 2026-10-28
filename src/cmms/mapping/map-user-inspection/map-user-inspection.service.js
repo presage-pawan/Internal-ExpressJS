@@ -1,5 +1,6 @@
 import { MapUserInspectionModel } from '../../schemas/map-user-unspection.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class MapUserInspectionService {
     constructor(dbType = 'production') {
@@ -22,7 +23,7 @@ export class MapUserInspectionService {
     }
 
     async getById(id, options = {}) {
-        let query = this.model.findById(id);
+        let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'account_id'));
         if (options.include) {
             options.include.split(',').forEach(field => {
                 query = query.populate(field.trim());
@@ -36,15 +37,15 @@ export class MapUserInspectionService {
         return doc.save();
     }
 
-    async update(id, data) {
-        return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+    async update(id, data, companyId) {
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), data, { new: true, runValidators: true });
     }
 
-    async updatePartial(id, data) {
-        return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+    async updatePartial(id, data, companyId) {
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { $set: data }, { new: true, runValidators: true });
     }
 
-    async delete(id) {
-        return this.model.findByIdAndRemove(id);
+    async delete(id, companyId) {
+        return this.model.findOneAndDelete(buildResourceScopeFilter(id, companyId, 'account_id'));
     }
 }
