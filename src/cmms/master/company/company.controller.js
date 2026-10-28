@@ -4,6 +4,7 @@ import { CompanyService } from './company.service.js';
 import { AssignedCompaniesService } from '../../../internal/assigned-companies/assigned-companies.service.js';
 import { stripCompanySecrets } from './company-security.js';
 import { requestAuditContext, writeSecurityAudit } from '../../../security/security-audit.service.js';
+import { buildCredentialAuditInput } from './company-credential-audit.js';
 
 export class CompanyController {
 
@@ -11,6 +12,17 @@ export class CompanyController {
   getInternalService = (req) => new AssignedCompaniesService(req.db_type);
 
   getRoleMenuService = (req) => new RoleMenuService(req.db_type);
+
+  credentialAuditInput = (req, action, companyId, metadata = {}) =>
+    buildCredentialAuditInput({
+      action,
+      actorId: req.user?.id || req.user?._id,
+      companyId,
+      environment: req.db_type,
+      requestId: req.headers?.['x-request-id'] || req.headers?.['x-correlation-id'],
+      reason: req.body?.reason,
+      metadata
+    });
 
   auditCredentialAction = (req, action, companyId, outcome = 'success', metadata = {}) =>
     writeSecurityAudit({
@@ -195,8 +207,10 @@ export class CompanyController {
   generateApiKey = async (req, res, next) => {
     try {
       const id = validateObjectId(req.params.id);
-      const data = await this.getService(req).generateApiKey(id);
-      await this.auditCredentialAction(req, 'company.api-key.generated', String(id));
+      const data = await this.getService(req).generateApiKey(
+        id,
+        this.credentialAuditInput(req, 'company.api-key.generated', String(id))
+      );
       res.status(200).json({ status: true, message: 'Account API key generated successfully', data });
     } catch (err) {
       next(err);
@@ -206,8 +220,10 @@ export class CompanyController {
   removeApiKey = async (req, res, next) => {
     try {
       const id = validateObjectId(req.params.id);
-      const data = await this.getService(req).removeApiKey(id);
-      await this.auditCredentialAction(req, 'company.api-key.deactivated', String(id));
+      const data = await this.getService(req).removeApiKey(
+        id,
+        this.credentialAuditInput(req, 'company.api-key.deactivated', String(id))
+      );
       res.status(200).json({ status: true, message: 'Account API key deactivated successfully', data });
     } catch (err) {
       next(err);
@@ -218,8 +234,12 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const visible = req.body?.visible !== undefined ? Boolean(req.body.visible) : undefined;
-      const data = await this.getService(req).toggleApiKeyStatus(id, visible);
-      await this.auditCredentialAction(req, 'company.api-key.status-changed', String(id), 'success', { visible: Boolean(data?.visible) });
+      const service = this.getService(req);
+      const data = await service.toggleApiKeyStatus(
+        id,
+        visible,
+        this.credentialAuditInput(req, 'company.api-key.status-changed', String(id), { visible })
+      );
       const action = data.visible ? 'activated' : 'deactivated';
       res.status(200).json({ status: true, message: `Account API key ${action} successfully`, data });
     } catch (err) {
@@ -241,8 +261,10 @@ export class CompanyController {
   generateDownloadApiKey = async (req, res, next) => {
     try {
       const id = validateObjectId(req.params.id);
-      const data = await this.getService(req).generateDownloadApiKey(id);
-      await this.auditCredentialAction(req, 'company.download-key.generated', String(id));
+      const data = await this.getService(req).generateDownloadApiKey(
+        id,
+        this.credentialAuditInput(req, 'company.download-key.generated', String(id))
+      );
       res.status(200).json({ status: true, message: 'Account download API key generated successfully', data });
     } catch (err) {
       next(err);
@@ -252,8 +274,10 @@ export class CompanyController {
   removeDownloadApiKey = async (req, res, next) => {
     try {
       const id = validateObjectId(req.params.id);
-      const data = await this.getService(req).removeDownloadApiKey(id);
-      await this.auditCredentialAction(req, 'company.download-key.revoked', String(id));
+      const data = await this.getService(req).removeDownloadApiKey(
+        id,
+        this.credentialAuditInput(req, 'company.download-key.revoked', String(id))
+      );
       res.status(200).json({ status: true, message: 'Account download API key deleted successfully', data });
     } catch (err) {
       next(err);
