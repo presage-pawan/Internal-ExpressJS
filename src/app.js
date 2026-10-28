@@ -9,6 +9,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import { errorMiddleware } from "./middlewares/error.js";
 import { fileURLToPath } from 'url';
 import { auth } from './auth.js';
+import { cmmsAuth } from './middlewares/cmms-auth.js';
 import { Logger } from './middlewares/logger.js';
 import publicRoutes from './routes/index.route.js';
 import authenticationRoutes from './authentication/authenticate.route.js'
@@ -83,7 +84,7 @@ const apiRouter = Router();
 apiRouter.use('/users', authenticationRoutes);
 apiRouter.use('/public', publicRoutes);
 apiRouter.use('/internal', auth, internalRoutes());
-apiRouter.use('/cmms', auth, cmmsRoutes());
+apiRouter.use('/cmms', cmmsAuth, cmmsRoutes());
 app.use('/api', apiRouter);
 
 app.use((req, res, next) => {
