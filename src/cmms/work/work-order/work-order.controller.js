@@ -1,4 +1,5 @@
 import { WorkOrderService } from './work-order.service.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 
 export class WorkOrderController {
     getService = (req) => new WorkOrderService(req.db_type);
@@ -29,7 +30,7 @@ export class WorkOrderController {
 
     create = async (req, res, next) => {
         try {
-            const data = await this.getService(req).create({ ...req.body, createdBy: req.user.id, account_id: req.companyId || req.body.account_id });
+            const data = await this.getService(req).create({ ...bindCompanyPayload(req.body, req.companyId, 'account_id'), createdBy: req.user.id });
             res.status(201).json({ status: true, message: 'WorkOrder created', data });
         } catch (err) {
             next(err);
@@ -39,7 +40,7 @@ export class WorkOrderController {
     update = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
+            const data = await this.getService(req).update(id, { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'WorkOrder updated', data });
         } catch (err) {
@@ -50,7 +51,7 @@ export class WorkOrderController {
     updatePartial = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
+            const data = await this.getService(req).updatePartial(id, { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('WorkOrder not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'WorkOrder updated', data });
         } catch (err) {
