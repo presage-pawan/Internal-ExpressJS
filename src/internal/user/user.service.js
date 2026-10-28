@@ -2,6 +2,7 @@ import { PasswordService } from '../../utils/bcrypt.js';
 import { InternalUserModel } from '../../schemas/users.model.js';
 import { deleteAccessTokenByUserId } from '../../schemas/accessToken.model.js';
 import { getConnection } from '../../_db/index.js';
+import { shouldRevokeSessions } from './user-session-policy.js';
 
 export class UserService {
 
@@ -52,7 +53,7 @@ export class UserService {
       normalizedPayload.password = await PasswordService.hash(normalizedPayload.password);
     }
     const user = await this.UserModel.findByIdAndUpdate(id, normalizedPayload, { new: true, runValidators: true });
-    if (user?.user_status === 'inactive') await this.revokeUserSessions(id);
+    if (user && shouldRevokeSessions(payload, user)) await this.revokeUserSessions(id);
     return user;
   }
 
@@ -62,11 +63,13 @@ export class UserService {
       normalizedPayload.password = await PasswordService.hash(normalizedPayload.password);
     }
     const user = await this.UserModel.findByIdAndUpdate(id, { $set: normalizedPayload }, { new: true, runValidators: true });
-    if (user?.user_status === 'inactive') await this.revokeUserSessions(id);
+    if (user && shouldRevokeSessions(payload, user)) await this.revokeUserSessions(id);
     return user;
   }
 
   async deleteUser(id, updatedBy) {
-    return this.UserModel.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
+    const user = await this.UserModel.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
+    if (user) await this.revokeUserSessions(id);
+    return user;
   }
 }
