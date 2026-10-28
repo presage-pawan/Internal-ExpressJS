@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon --inspect=0.0.0.0:9230 src/server.js",
+    "dev": "nodemon --inspect=127.0.0.1:9230 src/server.js",
     "migrate:account-role-menu": "node scripts/migrate-account-role-menu.js",
     "migrate:sales-lead-role-menu": "node scripts/migrate-sales-lead-role-menu.js",
     "test": "node --test",
