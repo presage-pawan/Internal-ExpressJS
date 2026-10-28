@@ -2,6 +2,7 @@ import { validateObjectId } from '../../../utils/helper.js';
 import { RoleMenuService } from '../../../internal/role-menu/role-menu.service.js';
 import { CompanyService } from './company.service.js';
 import { AssignedCompaniesService } from '../../../internal/assigned-companies/assigned-companies.service.js';
+import { stripCompanySecrets } from './company-security.js';
 
 export class CompanyController {
 
@@ -62,7 +63,7 @@ export class CompanyController {
         );
       }
 
-      res.status(200).json({ status: true, message: 'Accounts fetched successfully', data: finalRes });
+      res.status(200).json({ status: true, message: 'Accounts fetched successfully', data: finalRes.map(stripCompanySecrets) });
 
     } catch (err) {
       next(err);
@@ -75,7 +76,7 @@ export class CompanyController {
       if (!data) {
         throw Object.assign(new Error('Account not found'), { status: 404 });
       }
-      res.status(200).json({ status: true, message: 'Account fetched successfully', data });
+      res.status(200).json({ status: true, message: 'Account fetched successfully', data: stripCompanySecrets(data) });
     } catch (err) {
       next(err);
     }
