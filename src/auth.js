@@ -10,18 +10,22 @@ export const auth = async (req, res, next) => {
     if (!token) {
       throw Object.assign(new Error('No token provided'), { status: 401 });
     }
-    const dbType = req.headers['x-db-type'] === 'staging' ? 'staging' : 'production';
-    const websiteConn = getConnection(dbType, 'website');
-    const accessToken = await getAccessTokenByToken(token, websiteConn);
 
+    // Internal identity is authoritative only in the production website database.
+    // CMMS data environment selection happens later in cmmsAuth, after this identity
+    // has been authenticated and the requested environment has been authorized.
+    const websiteConn = getConnection('production', 'website');
+    const accessToken = await getAccessTokenByToken(token, websiteConn);
     if (!accessToken) {
       throw Object.assign(new Error('Invalid token'), { status: 401 });
     }
+
     const verifyToken = JwtService.verify(token);
     if (!verifyToken || !verifyToken.userId || !verifyToken.username || !verifyToken.role) {
       throw Object.assign(new Error('Invalid token'), { status: 401 });
     }
-    const user = await new UserService(dbType).getAllUsers({
+
+    const user = await new UserService('production').getAllUsers({
       _id: verifyToken.userId,
       username: verifyToken.username,
       user_role: verifyToken.role,
@@ -31,8 +35,9 @@ export const auth = async (req, res, next) => {
     if (!user || user.length === 0) {
       throw Object.assign(new Error('User account is inactive or unavailable'), { status: 401 });
     }
+
     user[0].id = user[0]._id;
-    req.db_type = req.headers['x-db-type'] === 'staging' ? 'staging' : 'production';
+    req.db_type = 'production';
     req.token = token;
     req.user = user[0];
     next();
