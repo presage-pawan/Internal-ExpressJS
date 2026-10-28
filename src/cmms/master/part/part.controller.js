@@ -1,4 +1,5 @@
 import { validateObjectId } from '../../../utils/helper.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 import { PartService } from './part.service.js';
 
 export class PartController {
@@ -34,7 +35,7 @@ export class PartController {
 
     create = async (req, res, next) => {
         try {
-            const part = await this.getService(req).create({ ...req.body, createdBy: req.user.id });
+            const part = await this.getService(req).create({ ...bindCompanyPayload(req.body, req.companyId, 'account_id'), createdBy: req.user.id });
             res.status(201).json({ status: true, message: 'Part created successfully', data: part });
         } catch (err) {
             next(err);
@@ -43,7 +44,7 @@ export class PartController {
 
     update = async (req, res, next) => {
         try {
-            const part = await this.getService(req).update(req.params.id, { ...req.body, updatedBy: req.user.id }, req.companyId);
+            const part = await this.getService(req).update(req.params.id, { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
             if (!part) throw Object.assign(new Error('Part not found'), { status: 404 });
 
             res.status(200).json({ status: true, message: 'Part updated successfully', data: part });
@@ -54,7 +55,7 @@ export class PartController {
 
     updatePartial = async (req, res, next) => {
         try {
-            const part = await this.getService(req).updatePartial(req.params.id, { ...req.body, updatedBy: req.user.id }, req.companyId);
+            const part = await this.getService(req).updatePartial(req.params.id, { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
             if (!part) throw Object.assign(new Error('Part not found'), { status: 404 });
 
             res.status(200).json({ status: true, message: 'Part updated successfully', data: part });
