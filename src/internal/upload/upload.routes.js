@@ -81,6 +81,9 @@ router.post('/', uploadMiddleware.array('files', 12), uploadController.uploadFil
  */
 router.post('/base64', uploadController.uploadBase64);
 
+router.get('/files/:fileName', uploadController.downloadPrivate);
+router.get('/files/:folderName/:fileName', uploadController.downloadPrivate);
+
 router.post('/:folderName', uploadMiddleware.array('files', 12), uploadController.uploadFiles);
 
 export default router;
