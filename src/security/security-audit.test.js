@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSecurityAuditEvent } from './security-audit.js';
+import { buildAuditPersistenceError, buildSecurityAuditEvent } from './security-audit.js';
 
 test('security audit records actor, target, environment and request context without secrets', () => {
   const event = buildSecurityAuditEvent({
@@ -38,14 +38,12 @@ test('unknown environments are normalized to production-safe metadata', () => {
 });
 
 
-test('required audit failures are represented as an explicit service-unavailable error policy', () => {
-  const error = new Error('database unavailable');
-  const normalized = {
-    name: 'SecurityAuditPersistenceError',
-    code: 'AUDIT_PERSISTENCE_FAILED',
-    status: 503,
-    cause: error
-  };
-  assert.equal(normalized.status, 503);
-  assert.equal(normalized.code, 'AUDIT_PERSISTENCE_FAILED');
+test('required audit failures are represented as an explicit service-unavailable error', () => {
+  const cause = new Error('database unavailable');
+  const error = buildAuditPersistenceError(cause);
+  assert.equal(error.name, 'SecurityAuditPersistenceError');
+  assert.equal(error.status, 503);
+  assert.equal(error.code, 'AUDIT_PERSISTENCE_FAILED');
+  assert.equal(error.cause, cause);
+  assert.doesNotMatch(error.message, /database unavailable/);
 });
