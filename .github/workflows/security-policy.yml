@@ -1,0 +1,44 @@
+name: Internal security policy validation
+
+on:
+  push:
+    branches: ['priority/bugs']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: internal-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-policy:
+    if: github.ref == 'refs/heads/priority/bugs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check security-critical JavaScript
+        run: |
+          node --check src/middlewares/authorization.js
+          node --check src/middlewares/environment-context.js
+          node --check src/middlewares/cmms-auth.js
+          node --check src/middlewares/company-access.js
+          node --check src/middlewares/company.js
+          node --check src/internal/user/user-session-policy.js
+          node --check src/internal/user/user.service.js
+          node --check src/cmms/master/company/company-security.js
+          node --check src/cmms/support-login/support-login.policy.js
+          node --check src/cmms/support-login/support-login.service.js
+          node --check src/cmms/support-login/support-login.controller.js
+          node --check src/cmms/support-login/support-login.route.js
+          node --check src/cmms/work/work-order/work-order-scope.js
+          node --check src/cmms/work/work-order/work-order.service.js
+          node --check src/cmms/work/work-order/work-order.controller.js
+      - name: Security policy regression tests
+        run: npm run test:security
