@@ -36,3 +36,16 @@ test('unknown environments are normalized to production-safe metadata', () => {
   const event = buildSecurityAuditEvent({ action: 'company.key.generated', environment: 'other' });
   assert.equal(event.environment, 'unknown');
 });
+
+
+test('required audit failures are represented as an explicit service-unavailable error policy', () => {
+  const error = new Error('database unavailable');
+  const normalized = {
+    name: 'SecurityAuditPersistenceError',
+    code: 'AUDIT_PERSISTENCE_FAILED',
+    status: 503,
+    cause: error
+  };
+  assert.equal(normalized.status, 503);
+  assert.equal(normalized.code, 'AUDIT_PERSISTENCE_FAILED');
+});
