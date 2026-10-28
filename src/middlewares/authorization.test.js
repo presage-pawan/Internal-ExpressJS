@@ -45,3 +45,9 @@ test('self access is allowed but another user requires the action', async () => 
   const other = await run(requireSelfOrInternalAction('internal.assignments.manage'), { user: worker, params: { id: 'u-admin' } });
   assert.equal(other?.status, 403);
 });
+
+
+test('only admin can use global CMMS routes', () => {
+  assert.equal(hasInternalAction(admin, 'cmms.global.manage'), true);
+  assert.equal(hasInternalAction(worker, 'cmms.global.manage'), false);
+});
