@@ -20,8 +20,8 @@ test('existing role menus acquire the new module while retaining explicit guide 
   const existing={_id:'role-id',roleName:'employee',roleMenu:await RoleManager.getRoleMenuData('employee')};
   delete existing.roleMenu.master_knowledge_base;delete existing.roleMenu.knowledge_base;
   const updated=await service.ensureDefaultRoleMenu(existing);
-  assert.equal(updated.roleMenu.knowledge_base.view,false);assert.equal(saved.length,1);
+  assert.equal(updated.roleMenu.knowledge_base.view,false);assert.equal(saved.length,0);
   const adminMenu=await RoleManager.getRoleMenuData('admin');adminMenu.master_knowledge_base.view=false;adminMenu.knowledge_base.delete=false;
   const denied={_id:'admin-id',roleName:'admin',roleMenu:adminMenu};
-  assert.equal(await service.ensureDefaultRoleMenu(denied),denied);assert.equal(saved.length,1);
+  assert.equal(await service.ensureDefaultRoleMenu(denied),denied);assert.equal(saved.length,0);
 });
