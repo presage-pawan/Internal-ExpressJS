@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { auth } from '../../auth.js';
 import { validate } from '../../middlewares/validate.js';
-import { createUserValidator, updateUserValidator } from './user.validator.js';
+import { createUserValidator, updateUserValidator, passwordChangeValidator } from './user.validator.js';
 import { UserController } from './user.controller.js';
 import { requireInternalAction, requireSelfOrInternalAction } from '../../middlewares/authorization.js';
 
@@ -115,8 +115,9 @@ router.post('/', auth, requireInternalAction('internal.users.manage'), createUse
  *       200:
  *         description: User deleted
  */
-router.put('/:id', auth, requireInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updateUser);
-router.patch('/:id', auth, requireInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updatePartial);
+router.patch('/:id/password', auth, requireSelfOrInternalAction('internal.users.manage'), passwordChangeValidator, validate, controller.updatePassword);
+router.put('/:id', auth, requireSelfOrInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updateUser);
+router.patch('/:id', auth, requireSelfOrInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updatePartial);
 router.delete('/:id', auth, requireInternalAction('internal.users.manage'), controller.deleteUser);
 
 export default router;
