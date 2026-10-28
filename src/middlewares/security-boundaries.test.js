@@ -36,3 +36,11 @@ test('CMMS user routes have an unambiguous company namespace and specific routes
   assert.ok(logs >= 0 && tokens >= 0 && roles >= 0 && verifications >= 0 && generic >= 0);
   assert.ok(logs < generic && tokens < generic && roles < generic && verifications < generic);
 });
+
+
+test('development inspector is loopback-only and production start has no inspector', () => {
+  const packageJson = JSON.parse(read('../../package.json'));
+  assert.match(packageJson.scripts.dev, /--inspect=127\.0\.0\.1:9230/);
+  assert.doesNotMatch(packageJson.scripts.dev, /--inspect=0\.0\.0\.0/);
+  assert.doesNotMatch(packageJson.scripts.start, /--inspect/);
+});
