@@ -7,6 +7,7 @@ import userLogsRoutes from './user-logs/user-logs.route.js';
 import userTokenRoutes from './user-token/user-token.route.js';
 import userVerificationRoutes from './user-verification/user-verification.route.js';
 import { UserController } from './user.controller.js';
+import { requireInternalAction } from '../../middlewares/authorization.js';
 import {
     createUserValidator,
     updateUserValidator,
@@ -182,28 +183,25 @@ export default () => {
         controller.updateTourCompletionForAll
     );
 
-    /* ── User CRUD (flat, no company scope) ───────────────────────────────── */
-    router.use('/', buildUserCrudRouter());
+    /* ── Specific flat sub-module routes before generic user CRUD ─────────── */
+    router.use('/logs', requireInternalAction('cmms.global.manage'), userLogsRoutes);
+    router.use('/tokens', requireInternalAction('cmms.global.manage'), userTokenRoutes);
+    router.use('/role-menus', requireInternalAction('cmms.global.manage'), roleMenuRoutes);
+    router.use('/verifications', requireInternalAction('cmms.global.manage'), userVerificationRoutes);
 
-    /* ── Sub-module routes (flat) ─────────────────────────────────────────── */
-    router.use('/logs', userLogsRoutes);
-    router.use('/tokens', userTokenRoutes);
-    router.use('/role-menus', roleMenuRoutes);
-    router.use('/verifications', userVerificationRoutes);
+    /* ── Flat user CRUD is platform-admin only ────────────────────────────── */
+    router.use('/', requireInternalAction('cmms.global.manage'), buildUserCrudRouter());
 
-    /* ── Company-scoped routes ────────────────────────────────────────────── */
+    /* ── Explicit company-scoped namespace ───────────────────────────────── */
     const companyRouter = express.Router({ mergeParams: true });
 
-    // User CRUD under /:companyId
-    companyRouter.use('/', buildUserCrudRouter(true));
-
-    // Sub-module routes under /:companyId
     companyRouter.use('/logs', userLogsRoutes);
     companyRouter.use('/tokens', userTokenRoutes);
     companyRouter.use('/role-menus', roleMenuRoutes);
     companyRouter.use('/verifications', userVerificationRoutes);
+    companyRouter.use('/', buildUserCrudRouter(true));
 
-    router.use('/:companyId', companyContext, companyRouter);
+    router.use('/company/:companyId', companyContext, companyRouter);
 
     return router;
 };
