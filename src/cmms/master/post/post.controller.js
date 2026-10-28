@@ -17,7 +17,7 @@ export class PostController {
         try {
             const { id } = req.params;
             const { include } = req.query;
-            const data = await this.getService(req).getById(id, { include });
+            const data = await this.getService(req).getById(id, { include, companyId: req.companyId });
             if (!data) throw Object.assign(new Error('Record not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Data fetched successfully', data });
         } catch (err) { next(err); }
@@ -35,7 +35,7 @@ export class PostController {
     update = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user?.id });
+            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user?.id }, req.companyId);
             if (!data) throw Object.assign(new Error('Record not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Updated successfully', data });
         } catch (err) { next(err); }
@@ -44,7 +44,7 @@ export class PostController {
     updatePartial = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user?.id });
+            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user?.id }, req.companyId);
             if (!data) throw Object.assign(new Error('Record not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Updated successfully', data });
         } catch (err) { next(err); }
@@ -53,7 +53,7 @@ export class PostController {
     delete = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).delete(id, req.user?.id);
+            const data = await this.getService(req).delete(id, req.user?.id, req.companyId);
             if (!data) throw Object.assign(new Error('Record not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Deleted successfully' });
         } catch (err) { next(err); }
