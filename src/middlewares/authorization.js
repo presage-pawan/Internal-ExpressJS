@@ -4,6 +4,7 @@ const INTERNAL_ACTION_ROLES = Object.freeze({
   'internal.assignments.manage': new Set(['admin']),
   'internal.companies.manage': new Set(['admin']),
   'internal.company-keys.manage': new Set(['admin']),
+  'cmms.global.manage': new Set(['admin']),
   'support.login': new Set(['admin'])
 });
 
