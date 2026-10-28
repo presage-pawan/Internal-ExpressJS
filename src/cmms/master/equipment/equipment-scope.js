@@ -10,3 +10,18 @@ export const equipmentBelongsToAllowedLocations = (equipmentSet, allowedLocation
   const referenced = extractEquipmentLocationIds(equipmentSet);
   return referenced.length > 0 && referenced.every(id => allowed.has(id));
 };
+
+export const buildEquipmentMutationFilter = (equipmentId, allowedLocationIds = null) => {
+  if (!Array.isArray(allowedLocationIds)) return { _id: equipmentId };
+  return {
+    _id: equipmentId,
+    'Equipment.value.0': { $exists: true },
+    'Equipment.value': {
+      $not: {
+        $elemMatch: {
+          location_id: { $nin: allowedLocationIds }
+        }
+      }
+    }
+  };
+};
