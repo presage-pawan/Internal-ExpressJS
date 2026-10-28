@@ -1,6 +1,7 @@
 import { getConnection } from '../../_db/index.js';
 import { InternalUserRoleMenuModel } from '../../schemas/role-menu.model.js';
 import { RoleManager } from '../utils/role-menu.js';
+import { mergeRoleMenuDefaults } from './role-menu-defaults.js';
 
 export class RoleMenuService {
 
@@ -60,20 +61,7 @@ export class RoleMenuService {
 
   async ensureDefaultRoleMenu(role) {
     const defaultRoleMenu = await this.getDefaultRoleMenu(role.roleName);
-    const roleMenu = { ...(role.roleMenu || {}) };
-    let changed = false;
-
-    Object.entries(defaultRoleMenu).forEach(([key, value]) => {
-      if (!Object.prototype.hasOwnProperty.call(roleMenu, key)) {
-        roleMenu[key] = value;
-        changed = true;
-      }
-    });
-
-    if (!changed) {
-      return role;
-    }
-
-    return this.RoleMenuModel.findByIdAndUpdate(role._id, { roleMenu }, { new: true, runValidators: true });
+    role.roleMenu = mergeRoleMenuDefaults(role.roleMenu || {}, defaultRoleMenu);
+    return role;
   }
 }
