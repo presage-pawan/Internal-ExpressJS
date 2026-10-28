@@ -59,16 +59,18 @@ for (const method of ['updateUser', 'updatePartial']) {
     const service = new UserService('staging');
     const id = '64a000000000000000000001';
     let writes = 0;
-    Object.defineProperty(service, 'model', { get: () => ({ findByIdAndUpdate(userId, update, options) {
-      assert.equal(service.dbType, 'staging'); assert.equal(userId, id);
+    Object.defineProperty(service, 'model', { get: () => ({ findOneAndUpdate(filter, update, options) {
+      assert.equal(service.dbType, 'staging');
+      assert.equal(String(filter._id), id);
+      assert.equal(filter.account_id, 'company-1');
       assert.deepEqual(Object.keys(update.$set), ['passwordExpiredAt']);
       assert.ok(update.$set.passwordExpiredAt instanceof Date);
       assert.equal(options.runValidators, true);
-      writes++; return { exec: async () => ({ _id: id, passwordExpiredAt: update.$set.passwordExpiredAt }) };
+      writes++; return { exec: async () => ({ _id: id, account_id: 'company-1', passwordExpiredAt: update.$set.passwordExpiredAt }) };
     } }) });
-    const result = await service[method](id, { passwordExpiryAction: 'extend-three-months' });
+    const result = await service[method](id, { passwordExpiryAction: 'extend-three-months' }, 'company-1');
     assert.equal(writes, 1); assert.equal(result.passwordExpired, false);
-    await assert.rejects(async () => service[method](id, { passwordExpiredAt: null }));
+    await assert.rejects(async () => service[method](id, { passwordExpiredAt: null }, 'company-1'));
     assert.equal(writes, 1);
   });
 }
