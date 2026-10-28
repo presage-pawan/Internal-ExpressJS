@@ -1,4 +1,5 @@
 import { UserTokenService } from './user-token.service.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 
 export class UserTokenController {
     getService = (req) => new UserTokenService(req.db_type);
@@ -8,9 +9,10 @@ export class UserTokenController {
         try {
             const { page, limit, userId, accountId, account_id, principalType, tokenType } = req.query;
             const filter = {};
+            if (req.companyId) filter.account_id = req.companyId;
             if (userId)        filter.userId        = userId;
             const accId = accountId || account_id;
-            if (accId)         filter.account_id    = accId;
+            if (!req.companyId && accId) filter.account_id = accId;
             if (principalType) filter.principalType = principalType;
             if (tokenType)     filter.tokenType     = tokenType;
 
@@ -32,7 +34,8 @@ export class UserTokenController {
             const { accountId, account_id } = req.query;
             const filter = {};
             const accId = accountId || account_id;
-            if (accId) filter.account_id = accId;
+            if (req.companyId) filter.account_id = req.companyId;
+            else if (accId) filter.account_id = accId;
             const data = await this.getService(req).getActiveDownloadTokens(filter);
             res.status(200).json({
                 status: true,
@@ -48,7 +51,7 @@ export class UserTokenController {
     getById = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).getById(id);
+            const data = await this.getService(req).getById(id, req.companyId);
             if (!data) throw Object.assign(new Error('Token not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Token fetched successfully', data });
         } catch (err) {
@@ -61,7 +64,7 @@ export class UserTokenController {
         try {
             const { userId } = req.params;
             const { page, limit } = req.query;
-            const result = await this.getService(req).getByUserId(userId, { page, limit });
+            const result = await this.getService(req).getByUserId(userId, { page, limit, companyId: req.companyId });
             res.status(200).json({
                 status: true,
                 message: 'User tokens fetched successfully',
@@ -78,7 +81,7 @@ export class UserTokenController {
         try {
             const { accountId } = req.params;
             const { page, limit, principalType } = req.query;
-            const result = await this.getService(req).getByAccountId(accountId, { page, limit, principalType });
+            const result = await this.getService(req).getByAccountId(accountId, { page, limit, principalType, companyId: req.companyId });
             res.status(200).json({
                 status: true,
                 message: 'Account tokens fetched successfully',
@@ -93,7 +96,7 @@ export class UserTokenController {
     /* ================= CREATE (issue token) ================= */
     create = async (req, res, next) => {
         try {
-            const data = await this.getService(req).create(req.body);
+            const data = await this.getService(req).create(bindCompanyPayload(req.body, req.companyId, 'account_id'), req.companyId);
             res.status(201).json({ status: true, message: 'Token created successfully', data });
         } catch (err) {
             next(err);
@@ -104,7 +107,7 @@ export class UserTokenController {
     delete = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).delete(id);
+            const data = await this.getService(req).delete(id, req.companyId);
             if (!data) throw Object.assign(new Error('Token not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Token revoked successfully' });
         } catch (err) {
@@ -116,7 +119,7 @@ export class UserTokenController {
     revokeAllByUserId = async (req, res, next) => {
         try {
             const { userId } = req.params;
-            const result = await this.getService(req).revokeAllByUserId(userId);
+            const result = await this.getService(req).revokeAllByUserId(userId, req.companyId);
             res.status(200).json({
                 status: true,
                 message: `Revoked ${result.deletedCount} token(s) for user`,
@@ -131,7 +134,7 @@ export class UserTokenController {
         try {
             const { accountId } = req.params;
             const { principalType } = req.query;
-            const result = await this.getService(req).revokeAllByAccountId(accountId, principalType);
+            const result = await this.getService(req).revokeAllByAccountId(accountId, principalType, req.companyId);
             res.status(200).json({
                 status: true,
                 message: `Revoked ${result.deletedCount} token(s) for account`,
