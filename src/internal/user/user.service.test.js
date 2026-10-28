@@ -39,12 +39,12 @@ describe('UserService status updates', () => {
     assert.equal(String(service.revokedUserId), String(userId));
   });
 
-  it('does not revoke sessions when a user remains active', async () => {
+  it('revokes sessions when status is explicitly changed or reaffirmed', async () => {
     const service = new UserStatusTestService();
 
     await service.updatePartial(new Types.ObjectId(), { user_status: 'active' });
 
     assert.equal(service.savedPayload.$set.user_status, 'active');
-    assert.equal(service.revokedUserId, null);
+    assert.ok(service.revokedUserId);
   });
 });
