@@ -10,14 +10,34 @@ test('support login target is selected only from server configuration', () => {
   assert.throws(() => resolveSupportLoginBaseUrl('other', config), (e) => e.status === 400);
 });
 
-test('support login request carries only the dedicated service credential and target identity', () => {
-  const request = buildSupportLoginRequest('user@example.com', 'company-1', 'service-secret');
+test('support login request binds actor, company, environment and browser state', () => {
+  const request = buildSupportLoginRequest({
+    email: 'user@example.com',
+    companyId: 'company-1',
+    actorId: 'admin-1',
+    environment: 'staging',
+    stateChallenge: 'state-challenge-abcdefghijklmnopqrstuvwxyz123456'
+  }, 'service-secret');
   assert.equal(request.method, 'POST');
   assert.equal(request.headers['x-support-login-key'], 'service-secret');
-  assert.deepEqual(JSON.parse(request.body), { email: 'user@example.com', company_id: 'company-1' });
+  assert.deepEqual(JSON.parse(request.body), {
+    email: 'user@example.com',
+    company_id: 'company-1',
+    actor_id: 'admin-1',
+    environment: 'staging',
+    state_challenge: 'state-challenge-abcdefghijklmnopqrstuvwxyz123456'
+  });
   assert.equal(Object.prototype.hasOwnProperty.call(request.headers, 'authorization'), false);
 });
 
-test('missing service secret fails closed', () => {
-  assert.throws(() => buildSupportLoginRequest('user@example.com', 'company-1', ''), (e) => e.status === 503);
+test('missing service secret or browser state fails closed', () => {
+  const input = {
+    email: 'user@example.com',
+    companyId: 'company-1',
+    actorId: 'admin-1',
+    environment: 'staging',
+    stateChallenge: 'state-challenge-abcdefghijklmnopqrstuvwxyz123456'
+  };
+  assert.throws(() => buildSupportLoginRequest(input, ''), (e) => e.status === 503);
+  assert.throws(() => buildSupportLoginRequest({ ...input, stateChallenge: '' }, 'service-secret'), (e) => e.status === 400);
 });
