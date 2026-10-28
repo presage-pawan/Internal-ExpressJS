@@ -58,7 +58,6 @@ app.use('/blogs', express.static(path.join(process.cwd(), 'blogs'), {
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
 }));
-app.use('/', express.static(path.join(__dirname, '../uploadFiles')));
 app.use(rateLimit({
   windowMs: REQUEST_LIMITS.apiWindowMs,
   max: REQUEST_LIMITS.apiMax,
