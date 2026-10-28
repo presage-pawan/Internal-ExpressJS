@@ -19,7 +19,7 @@ export class FormController {
         try {
             const { id } = req.params;
             const { include } = req.query;
-            const data = await this.getService(req).getById(id, { include });
+            const data = await this.getService(req).getById(id, { include, companyId: req.companyId });
             if (!data) throw Object.assign(new Error('Form not found'), { status: 404 });
             res.status(200).json({ status: true, data });
         } catch (err) {
@@ -39,7 +39,7 @@ export class FormController {
     update = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id });
+            const data = await this.getService(req).update(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('Form not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Form updated', data });
         } catch (err) {
@@ -50,7 +50,7 @@ export class FormController {
     updatePartial = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id });
+            const data = await this.getService(req).updatePartial(id, { ...req.body, updatedBy: req.user.id }, req.companyId);
             if (!data) throw Object.assign(new Error('Form not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Form updated', data });
         } catch (err) {
@@ -61,7 +61,7 @@ export class FormController {
     delete = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).delete(id);
+            const data = await this.getService(req).delete(id, req.companyId);
             if (!data) throw Object.assign(new Error('Form not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Form deleted' });
         } catch (err) {
