@@ -23,24 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Syntax check security-critical JavaScript
+      - name: Syntax check all JavaScript sources
         run: |
-          node --check src/middlewares/authorization.js
-          node --check src/middlewares/environment-context.js
-          node --check src/middlewares/cmms-auth.js
-          node --check src/middlewares/company-access.js
-          node --check src/middlewares/company.js
-          node --check src/internal/user/user-session-policy.js
-          node --check src/internal/user/user.service.js
-          node --check src/internal/role-menu/role-menu-defaults.js
-          node --check src/internal/role-menu/role-menu.service.js
-          node --check src/cmms/master/company/company-security.js
-          node --check src/cmms/support-login/support-login.policy.js
-          node --check src/cmms/support-login/support-login.service.js
-          node --check src/cmms/support-login/support-login.controller.js
-          node --check src/cmms/support-login/support-login.route.js
-          node --check src/cmms/work/work-order/work-order-scope.js
-          node --check src/cmms/work/work-order/work-order.service.js
-          node --check src/cmms/work/work-order/work-order.controller.js
+          find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Security policy regression tests
         run: npm run test:security
