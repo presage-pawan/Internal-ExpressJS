@@ -12,24 +12,15 @@ const controller = new RoleMenuController();
  *   description: UI menu control based on user roles
  */
 
-/**
- * @swagger
- * /api/cmms/users/role-menus:
- *   get:
- *     summary: Get all role-menu configurations
- *     tags: [RoleMenus]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of role-menu configurations
- */
 router.get('/', auth, controller.getAll);
 router.post('/', auth, controller.create);
+
+// Specific named lookups must be registered before the generic /:id route.
+router.get('/user/:userId', auth, controller.getByUserId);
+
 router.get('/:id', auth, controller.getById);
 router.put('/:id', auth, controller.update);
 router.patch('/:id', auth, controller.updatePartial);
 router.delete('/:id', auth, controller.delete);
-router.get('/user/:userId', auth, controller.getByUserId);
 
 export default router;
