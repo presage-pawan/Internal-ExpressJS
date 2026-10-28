@@ -1,5 +1,6 @@
 import { ExternalUserModel as MapUserModel } from '../../schemas/map_user.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 import { validateObjectId } from '../../../utils/helper.js';
 
 export class MapUserService {
@@ -24,14 +25,14 @@ export class MapUserService {
         return { data, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } };
     }
     async getById(id, options = {}) {
-        const filter = { _id: validateObjectId(id) };
+        const filter = buildResourceScopeFilter(validateObjectId(id), options.companyId, 'account_id');
         filter.visible = { $ne: false };
         let query = this.model.findOne(filter);
         if (options.include) options.include.split(',').forEach(f => { query = query.populate(f.trim()); });
         return query.lean();
     }
     async create(data) { return new this.model(data).save(); }
-    async update(id, data) { return this.model.findByIdAndUpdate(validateObjectId(id), data, { new: true, runValidators: true }); }
-    async updatePartial(id, data) { return this.model.findByIdAndUpdate(validateObjectId(id), { $set: data }, { new: true, runValidators: true }); }
-    async delete(id, updatedBy) { return this.model.findByIdAndUpdate(validateObjectId(id), { visible: false, updatedBy }, { new: true }); }
+    async update(id, data, companyId) { return this.model.findOneAndUpdate(buildResourceScopeFilter(validateObjectId(id), companyId, 'account_id'), data, { new: true, runValidators: true }); }
+    async updatePartial(id, data, companyId) { return this.model.findOneAndUpdate(buildResourceScopeFilter(validateObjectId(id), companyId, 'account_id'), { $set: data }, { new: true, runValidators: true }); }
+    async delete(id, updatedBy, companyId) { return this.model.findOneAndUpdate(buildResourceScopeFilter(validateObjectId(id), companyId, 'account_id'), { visible: false, updatedBy }, { new: true }); }
 }
