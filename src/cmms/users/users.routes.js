@@ -198,7 +198,6 @@ export default () => {
     companyRouter.use('/logs', userLogsRoutes);
     companyRouter.use('/tokens', userTokenRoutes);
     companyRouter.use('/role-menus', roleMenuRoutes);
-    companyRouter.use('/verifications', userVerificationRoutes);
     companyRouter.use('/', buildUserCrudRouter(true));
 
     router.use('/company/:companyId', companyContext, companyRouter);
