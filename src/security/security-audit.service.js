@@ -1,18 +1,26 @@
 import { getConnection } from '../_db/index.js';
 import { SecurityAuditModel } from '../schemas/security-audit.model.js';
-import { buildSecurityAuditEvent } from './security-audit.js';
+import { buildAuditPersistenceError, buildSecurityAuditEvent } from './security-audit.js';
 
-export const writeSecurityAudit = async (input) => {
+export const writeSecurityAudit = async (input, options = {}) => {
   try {
-    const connection = getConnection('production', 'website');
-    return await SecurityAuditModel(connection).create(buildSecurityAuditEvent(input));
+    const connection = options.connection || getConnection('production', 'website');
+    const model = SecurityAuditModel(connection);
+    const event = buildSecurityAuditEvent(input);
+    if (options.session) {
+      const created = await model.create([event], { session: options.session });
+      return created?.[0] || null;
+    }
+    return await model.create(event);
   } catch (error) {
-    // Audit failure must be visible to protected logs without leaking action secrets.
     console.error('Security audit persistence failed', {
       action: String(input?.action || ''),
       request_id: String(input?.requestId || ''),
       error: error?.name || 'Error'
     });
+    if (options.required) {
+      throw buildAuditPersistenceError(error);
+    }
     return null;
   }
 };
