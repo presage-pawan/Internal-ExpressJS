@@ -26,6 +26,20 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Capture exact dependency audit
+        run: |
+          npm audit --omit=dev --json > npm-audit-runtime.json || true
+          npm audit --json > npm-audit-all.json || true
+          node -e "const r=require('./npm-audit-runtime.json'); if ((r.metadata?.vulnerabilities?.critical||0)>0) process.exit(1)"
+      - name: Upload dependency audit
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-express-npm-audit
+          path: |
+            npm-audit-runtime.json
+            npm-audit-all.json
+          if-no-files-found: ignore
       - name: Syntax check all JavaScript sources
         run: |
           find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
