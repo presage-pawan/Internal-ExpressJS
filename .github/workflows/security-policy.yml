@@ -23,8 +23,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Syntax check all JavaScript sources
         run: |
           find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Security policy regression tests
         run: npm run test:security
+      - name: Full Node test suite
+        run: npm test
