@@ -10,6 +10,7 @@ import {
     mergeWithAccountRoleMenuTemplate,
     validateAccountRoleMenu
 } from './account-role-menu.js';
+import { buildPermissionVersionFilter } from './account-permission-transaction.js';
 
 const ACCOUNT_UPDATE_FIELDS = [
     'account_name',
@@ -310,84 +311,118 @@ export class CompanyService {
     }
 
     async updateAccountRoleMenu(accountId, payload, internalUserId) {
-        const account = await this.findById(accountId);
-        if (!account) {
-            throw Object.assign(new Error('Account not found'), { status: 404 });
-        }
+        const connection = getConnection(this.dbType, 'cmms');
+        const session = await connection.startSession();
+        let result;
 
-        const accountRoleMenu = this.normalizeAccountRoleMenu(payload.account_role_menu, account.experience_profile);
-        const before = this.getCurrentAccountRoleMenu(account);
-        const accountPermissionVersion = Number(account.account_permission_version || 1) + 1;
-        const updatedAccount = await this.model.findByIdAndUpdate(
-            accountId,
-            {
-                $set: {
-                    account_role_menu: accountRoleMenu,
-                    account_permission_version: accountPermissionVersion,
-                    account_role_menu_schema_version: ACCOUNT_ROLE_MENU_SCHEMA_VERSION,
-                    account_role_menu_updated_by: internalUserId,
-                    account_role_menu_updated_at: new Date()
+        try {
+            await session.withTransaction(async () => {
+                const account = await this.model.findById(accountId).session(session);
+                if (!account) {
+                    throw Object.assign(new Error('Account not found'), { status: 404 });
                 }
-            },
-            { new: true, runValidators: true }
-        );
 
-        await this.auditModel.create({
-            account_id: accountId,
-            before,
-            after: accountRoleMenu,
-            changed_by: internalUserId,
-            reason: payload.reason
-        });
+                const accountRoleMenu = this.normalizeAccountRoleMenu(payload.account_role_menu, account.experience_profile);
+                const before = this.getCurrentAccountRoleMenu(account);
+                const observedVersion = account.account_permission_version;
+                const accountPermissionVersion = Number(observedVersion || 1) + 1;
 
-        return {
-            account_id: updatedAccount._id,
-            account_role_menu: updatedAccount.account_role_menu,
-            account_permission_version: updatedAccount.account_permission_version,
-            account_role_menu_schema_version: updatedAccount.account_role_menu_schema_version
-        };
+                const updatedAccount = await this.model.findOneAndUpdate(
+                    buildPermissionVersionFilter(accountId, observedVersion),
+                    {
+                        $set: {
+                            account_role_menu: accountRoleMenu,
+                            account_permission_version: accountPermissionVersion,
+                            account_role_menu_schema_version: ACCOUNT_ROLE_MENU_SCHEMA_VERSION,
+                            account_role_menu_updated_by: internalUserId,
+                            account_role_menu_updated_at: new Date()
+                        }
+                    },
+                    { new: true, runValidators: true, session }
+                );
+
+                if (!updatedAccount) {
+                    throw Object.assign(new Error('Account permissions changed concurrently; retry the request'), { status: 409 });
+                }
+
+                await this.auditModel.create([{
+                    account_id: accountId,
+                    before,
+                    after: accountRoleMenu,
+                    changed_by: internalUserId,
+                    reason: payload.reason
+                }], { session });
+
+                result = {
+                    account_id: updatedAccount._id,
+                    account_role_menu: updatedAccount.account_role_menu,
+                    account_permission_version: updatedAccount.account_permission_version,
+                    account_role_menu_schema_version: updatedAccount.account_role_menu_schema_version
+                };
+            });
+            return result;
+        } finally {
+            await session.endSession();
+        }
     }
 
     async resetAccountRoleMenu(accountId, payload, internalUserId) {
-        const account = await this.findById(accountId);
-        if (!account) {
-            throw Object.assign(new Error('Account not found'), { status: 404 });
-        }
+        const connection = getConnection(this.dbType, 'cmms');
+        const session = await connection.startSession();
+        let result;
 
-        const experienceProfile = payload.experience_profile || account.experience_profile || 'standard_account';
-        const accountRoleMenu = getAccountRoleMenuTemplate(experienceProfile);
-        const before = this.getCurrentAccountRoleMenu(account);
-        const accountPermissionVersion = Number(account.account_permission_version || 1) + 1;
-        const updatedAccount = await this.model.findByIdAndUpdate(
-            accountId,
-            {
-                $set: {
-                    experience_profile: experienceProfile,
-                    account_role_menu: accountRoleMenu,
-                    account_permission_version: accountPermissionVersion,
-                    account_role_menu_schema_version: ACCOUNT_ROLE_MENU_SCHEMA_VERSION,
-                    account_role_menu_updated_by: internalUserId,
-                    account_role_menu_updated_at: new Date()
+        try {
+            await session.withTransaction(async () => {
+                const account = await this.model.findById(accountId).session(session);
+                if (!account) {
+                    throw Object.assign(new Error('Account not found'), { status: 404 });
                 }
-            },
-            { new: true, runValidators: true }
-        );
 
-        await this.auditModel.create({
-            account_id: accountId,
-            before,
-            after: accountRoleMenu,
-            changed_by: internalUserId,
-            reason: payload.reason
-        });
+                const experienceProfile = payload.experience_profile || account.experience_profile || 'standard_account';
+                const accountRoleMenu = getAccountRoleMenuTemplate(experienceProfile);
+                const before = this.getCurrentAccountRoleMenu(account);
+                const observedVersion = account.account_permission_version;
+                const accountPermissionVersion = Number(observedVersion || 1) + 1;
 
-        return {
-            account_id: updatedAccount._id,
-            experience_profile: updatedAccount.experience_profile,
-            account_role_menu: updatedAccount.account_role_menu,
-            account_permission_version: updatedAccount.account_permission_version,
-            account_role_menu_schema_version: updatedAccount.account_role_menu_schema_version
-        };
+                const updatedAccount = await this.model.findOneAndUpdate(
+                    buildPermissionVersionFilter(accountId, observedVersion),
+                    {
+                        $set: {
+                            experience_profile: experienceProfile,
+                            account_role_menu: accountRoleMenu,
+                            account_permission_version: accountPermissionVersion,
+                            account_role_menu_schema_version: ACCOUNT_ROLE_MENU_SCHEMA_VERSION,
+                            account_role_menu_updated_by: internalUserId,
+                            account_role_menu_updated_at: new Date()
+                        }
+                    },
+                    { new: true, runValidators: true, session }
+                );
+
+                if (!updatedAccount) {
+                    throw Object.assign(new Error('Account permissions changed concurrently; retry the request'), { status: 409 });
+                }
+
+                await this.auditModel.create([{
+                    account_id: accountId,
+                    before,
+                    after: accountRoleMenu,
+                    changed_by: internalUserId,
+                    reason: payload.reason
+                }], { session });
+
+                result = {
+                    account_id: updatedAccount._id,
+                    experience_profile: updatedAccount.experience_profile,
+                    account_role_menu: updatedAccount.account_role_menu,
+                    account_permission_version: updatedAccount.account_permission_version,
+                    account_role_menu_schema_version: updatedAccount.account_role_menu_schema_version
+                };
+            });
+            return result;
+        } finally {
+            await session.endSession();
+        }
     }
 
     getCurrentAccountRoleMenu(account) {
