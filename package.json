@@ -8,7 +8,8 @@
     "migrate:account-role-menu": "node scripts/migrate-account-role-menu.js",
     "migrate:sales-lead-role-menu": "node scripts/migrate-sales-lead-role-menu.js",
     "test": "node --test",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test:security": "node --test src/internal/user/user-session-policy.test.js src/middlewares/authorization.test.js src/middlewares/environment-context.test.js src/cmms/master/company/company-security.test.js src/cmms/support-login/support-login.policy.test.js"
   },
   "keywords": [],
   "author": "",
