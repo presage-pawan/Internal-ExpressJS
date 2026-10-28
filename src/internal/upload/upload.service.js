@@ -1,10 +1,15 @@
+import path from 'path';
 import { UploadFilesService } from '../../utils/upload.js';
+import { classifyUploadFolder, resolveUploadPath } from './upload-path-policy.js';
+
+const PUBLIC_UPLOAD_ROOT = path.join(process.cwd(), 'blogs');
+const PRIVATE_UPLOAD_ROOT = path.join(process.cwd(), 'uploadFiles');
 
 class UploadService {
 
     uploadFiles(req) {
         const files = Array.isArray(req.files) ? req.files : [];
-        const folderName = req.params?.folderName || null;
+        const folderName = req.params?.folderName || '';
 
         if (!files.length) {
             throw Object.assign(new Error('No files uploaded'), { status: 400 });
@@ -12,11 +17,10 @@ class UploadService {
         return files.map(file => ({
             name: file.filename,
             type: file.mimetype,
-            destination: file.destination,
-            field: file.fieldname,
             originalFilename: file.originalname,
             size: file.size,
-            container: folderName
+            container: folderName || null,
+            visibility: classifyUploadFolder(folderName)
         }));
     }
 
@@ -29,6 +33,14 @@ class UploadService {
             throw Object.assign(new Error('Folder name is required'), { status: 400 });
         }
         return UploadFilesService.uploadBase64Image(baseImage, folderName);
+    }
+
+    resolvePrivateFile(folderName, fileName) {
+        const relativePath = folderName ? `${folderName}/${fileName}` : fileName;
+        return resolveUploadPath(relativePath, {
+            publicRoot: PUBLIC_UPLOAD_ROOT,
+            privateRoot: PRIVATE_UPLOAD_ROOT
+        }, true);
     }
 }
 
