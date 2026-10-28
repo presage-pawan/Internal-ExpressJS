@@ -44,3 +44,12 @@ test('development inspector is loopback-only and production start has no inspect
   assert.doesNotMatch(packageJson.scripts.dev, /--inspect=0\.0\.0\.0/);
   assert.doesNotMatch(packageJson.scripts.start, /--inspect/);
 });
+
+
+test('identity authentication is pinned to the production website database', () => {
+  const auth = read('../auth.js');
+  assert.match(auth, /getConnection\(['"]production['"],\s*['"]website['"]\)/);
+  assert.match(auth, /new UserService\(['"]production['"]\)/);
+  assert.match(auth, /req\.db_type\s*=\s*['"]production['"]/);
+  assert.doesNotMatch(auth, /req\.headers\[['"]x-db-type['"]\].*website/);
+});
