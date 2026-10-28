@@ -3,6 +3,7 @@ import { RoleMenuService } from '../../../internal/role-menu/role-menu.service.j
 import { CompanyService } from './company.service.js';
 import { AssignedCompaniesService } from '../../../internal/assigned-companies/assigned-companies.service.js';
 import { stripCompanySecrets } from './company-security.js';
+import { requestAuditContext, writeSecurityAudit } from '../../../security/security-audit.service.js';
 
 export class CompanyController {
 
@@ -10,6 +11,18 @@ export class CompanyController {
   getInternalService = (req) => new AssignedCompaniesService(req.db_type);
 
   getRoleMenuService = (req) => new RoleMenuService(req.db_type);
+
+  auditCredentialAction = (req, action, companyId, outcome = 'success', metadata = {}) =>
+    writeSecurityAudit({
+      ...requestAuditContext(req),
+      action,
+      targetType: 'company-credential',
+      targetId: companyId,
+      companyId,
+      reason: req.body?.reason,
+      outcome,
+      metadata
+    });
 
   assertCanManageAccountPermissions = async (req) => {
     if (req.user?.user_role === 'admin') {
@@ -172,6 +185,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).getApiKey(id);
+      await this.auditCredentialAction(req, 'company.api-key.read', String(id));
       res.status(200).json({ status: true, message: 'Account API key fetched successfully', data });
     } catch (err) {
       next(err);
@@ -182,6 +196,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).generateApiKey(id);
+      await this.auditCredentialAction(req, 'company.api-key.generated', String(id));
       res.status(200).json({ status: true, message: 'Account API key generated successfully', data });
     } catch (err) {
       next(err);
@@ -192,6 +207,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).removeApiKey(id);
+      await this.auditCredentialAction(req, 'company.api-key.deactivated', String(id));
       res.status(200).json({ status: true, message: 'Account API key deactivated successfully', data });
     } catch (err) {
       next(err);
@@ -203,6 +219,7 @@ export class CompanyController {
       const id = validateObjectId(req.params.id);
       const visible = req.body?.visible !== undefined ? Boolean(req.body.visible) : undefined;
       const data = await this.getService(req).toggleApiKeyStatus(id, visible);
+      await this.auditCredentialAction(req, 'company.api-key.status-changed', String(id), 'success', { visible: Boolean(data?.visible) });
       const action = data.visible ? 'activated' : 'deactivated';
       res.status(200).json({ status: true, message: `Account API key ${action} successfully`, data });
     } catch (err) {
@@ -214,6 +231,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).getDownloadApiKey(id);
+      await this.auditCredentialAction(req, 'company.download-key.read', String(id));
       res.status(200).json({ status: true, message: 'Account download API key fetched successfully', data });
     } catch (err) {
       next(err);
@@ -224,6 +242,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).generateDownloadApiKey(id);
+      await this.auditCredentialAction(req, 'company.download-key.generated', String(id));
       res.status(200).json({ status: true, message: 'Account download API key generated successfully', data });
     } catch (err) {
       next(err);
@@ -234,6 +253,7 @@ export class CompanyController {
     try {
       const id = validateObjectId(req.params.id);
       const data = await this.getService(req).removeDownloadApiKey(id);
+      await this.auditCredentialAction(req, 'company.download-key.revoked', String(id));
       res.status(200).json({ status: true, message: 'Account download API key deleted successfully', data });
     } catch (err) {
       next(err);
