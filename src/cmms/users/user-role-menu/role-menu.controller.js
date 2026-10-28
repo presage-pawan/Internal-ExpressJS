@@ -1,4 +1,5 @@
 import { RoleMenuService } from './role-menu.service.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 
 export class RoleMenuController {
     getService = (req) => new RoleMenuService(req.db_type);
@@ -11,7 +12,7 @@ export class RoleMenuController {
 
             const filter = {};
             if (companyId) filter.account_id = companyId;
-            if (account_id) filter.account_id = account_id;
+            else if (account_id) filter.account_id = account_id;
             if (user_id) filter.user_id = user_id;
 
             const result = await this.getService(req).getAll(filter, { page, limit });
@@ -30,7 +31,7 @@ export class RoleMenuController {
     getById = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).getById(id);
+            const data = await this.getService(req).getById(id, req.companyId);
             if (!data) throw Object.assign(new Error('Role menu not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Role menu fetched successfully', data });
         } catch (err) {
@@ -43,7 +44,7 @@ export class RoleMenuController {
         try {
             const { userId } = req.params;
             const { page, limit } = req.query;
-            const result = await this.getService(req).getByUserId(userId, { page, limit });
+            const result = await this.getService(req).getByUserId(userId, { page, limit, companyId: req.companyId });
             res.status(200).json({
                 status: true,
                 message: 'Role menus fetched successfully',
@@ -59,13 +60,10 @@ export class RoleMenuController {
     create = async (req, res, next) => {
         try {
             const payload = {
-                ...req.body,
+                ...bindCompanyPayload(req.body, req.companyId, 'account_id'),
                 createdBy: req.user?.id,
                 updatedBy: req.user?.id,
             };
-            if (req.companyId && !payload.account_id) {
-                payload.account_id = req.companyId;
-            }
             const data = await this.getService(req).create(payload);
             res.status(201).json({ status: true, message: 'Role menu created successfully', data });
         } catch (err) {
@@ -77,8 +75,8 @@ export class RoleMenuController {
     update = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const payload = { ...req.body, updatedBy: req.user?.id };
-            const data = await this.getService(req).update(id, payload);
+            const payload = { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user?.id };
+            const data = await this.getService(req).update(id, payload, req.companyId);
             if (!data) throw Object.assign(new Error('Role menu not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Role menu updated successfully', data });
         } catch (err) {
@@ -90,8 +88,8 @@ export class RoleMenuController {
     updatePartial = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const payload = { ...req.body, updatedBy: req.user?.id };
-            const data = await this.getService(req).updatePartial(id, payload);
+            const payload = { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user?.id };
+            const data = await this.getService(req).updatePartial(id, payload, req.companyId);
             if (!data) throw Object.assign(new Error('Role menu not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Role menu updated successfully', data });
         } catch (err) {
@@ -103,7 +101,7 @@ export class RoleMenuController {
     delete = async (req, res, next) => {
         try {
             const { id } = req.params;
-            const data = await this.getService(req).delete(id);
+            const data = await this.getService(req).delete(id, req.companyId);
             if (!data) throw Object.assign(new Error('Role menu not found'), { status: 404 });
             res.status(200).json({ status: true, message: 'Role menu deleted successfully' });
         } catch (err) {
