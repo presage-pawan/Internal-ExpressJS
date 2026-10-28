@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { resolveUploadPath } from '../internal/upload/upload-path-policy.js';
+import { matchesUploadSignature } from '../internal/upload/upload-signature-policy.js';
 
 const PRIVATE_UPLOAD_ROOT = path.resolve(process.cwd(), 'uploadFiles');
 const PUBLIC_UPLOAD_ROOT = path.resolve(process.cwd(), 'blogs');
@@ -39,7 +40,10 @@ export class UploadFilesService {
       throw Object.assign(new Error('File size exceeds limit'), { status: 413 });
     }
 
-    const extension = mimeType.split('/')[1];
+    const extension = mimeType === 'image/jpeg' || mimeType === 'image/jpg' ? 'jpg' : mimeType.split('/')[1];
+    if (!matchesUploadSignature(buffer.subarray(0, 16), `.${extension}`)) {
+      throw Object.assign(new Error('Base64 file content does not match its declared image type'), { status: 415 });
+    }
     const fileName = `${crypto.randomUUID()}.${extension}`;
     const destination = resolveUploadPath(folderName, {
       publicRoot: PUBLIC_UPLOAD_ROOT,
