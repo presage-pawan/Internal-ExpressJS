@@ -67,6 +67,27 @@ export class UserService {
     return user;
   }
 
+  async updatePassword(id, { currentPassword, newPassword, requireCurrentPassword = false }) {
+    const existing = await this.UserModel.findById(id).select('+password');
+    if (!existing) return null;
+
+    if (requireCurrentPassword) {
+      const matches = await PasswordService.compare(currentPassword, existing.password);
+      if (!matches) {
+        throw Object.assign(new Error('Current password is incorrect'), { status: 403 });
+      }
+    }
+
+    const password = await PasswordService.hash(newPassword);
+    const user = await this.UserModel.findByIdAndUpdate(
+      id,
+      { $set: { password } },
+      { new: true, runValidators: true }
+    );
+    if (user) await this.revokeUserSessions(id);
+    return user;
+  }
+
   async deleteUser(id, updatedBy) {
     const user = await this.UserModel.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
     if (user) await this.revokeUserSessions(id);
