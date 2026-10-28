@@ -15,9 +15,16 @@ test('admin is allowed to manage internal users', () => {
   assert.equal(hasInternalAction(admin, 'internal.users.manage'), true);
 });
 
-test('worker cannot manage internal users or roles', () => {
+test('worker cannot manage internal users, roles, companies or keys', () => {
   assert.equal(hasInternalAction(worker, 'internal.users.manage'), false);
   assert.equal(hasInternalAction(worker, 'internal.roles.manage'), false);
+  assert.equal(hasInternalAction(worker, 'internal.companies.manage'), false);
+  assert.equal(hasInternalAction(worker, 'internal.company-keys.manage'), false);
+});
+
+test('admin can manage companies and company credentials', () => {
+  assert.equal(hasInternalAction(admin, 'internal.companies.manage'), true);
+  assert.equal(hasInternalAction(admin, 'internal.company-keys.manage'), true);
 });
 
 test('inactive or hidden admin is denied', () => {
