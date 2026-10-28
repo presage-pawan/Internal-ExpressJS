@@ -1,4 +1,5 @@
 import { FloorMapService } from './floor-map.service.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 
 export class FloorMapController {
     getService = (req) => new FloorMapService(req.db_type);
@@ -20,7 +21,7 @@ export class FloorMapController {
 
     create = async (req, res, next) => {
         try {
-            const data = await this.getService(req).create(req.body);
+            const data = await this.getService(req).create(bindCompanyPayload(req.body, req.companyId, 'account_id'));
             if (!data) {
                 throw Object.assign(new Error('Floor map not found'), { status: 404 });
             }
@@ -32,7 +33,7 @@ export class FloorMapController {
 
     update = async (req, res, next) => {
         try {
-            const data = await this.getService(req).update(validateObjectId(req.params.id), req.body);
+            const data = await this.getService(req).update(validateObjectId(req.params.id), bindCompanyPayload(req.body, req.companyId, 'account_id'), req.companyId);
             if (!data) {
                 throw Object.assign(new Error('Floor map not found'), { status: 404 });
             }
@@ -44,7 +45,7 @@ export class FloorMapController {
 
     updatePartial = async (req, res, next) => {
         try {
-            const data = await this.getService(req).updatePartial(validateObjectId(req.params.id), req.body);
+            const data = await this.getService(req).updatePartial(validateObjectId(req.params.id), bindCompanyPayload(req.body, req.companyId, 'account_id'), req.companyId);
             if (!data) {
                 throw Object.assign(new Error('Floor map not found'), { status: 404 });
             }
@@ -56,7 +57,7 @@ export class FloorMapController {
 
     delete = async (req, res, next) => {
         try {
-            const data = await this.getService(req).delete(validateObjectId(req.params.id), req.user?.id);
+            const data = await this.getService(req).delete(validateObjectId(req.params.id), req.user?.id, req.companyId);
             if (!data) {
                 throw Object.assign(new Error('Floor map not found'), { status: 404 });
             }
