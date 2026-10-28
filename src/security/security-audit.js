@@ -35,3 +35,12 @@ export const buildSecurityAuditEvent = ({
   outcome: outcome === 'failure' ? 'failure' : 'success',
   metadata: sanitizeMetadata(metadata || {})
 });
+
+export const buildAuditPersistenceError = (cause) => {
+  const error = new Error('Security audit persistence failed');
+  error.name = 'SecurityAuditPersistenceError';
+  error.code = 'AUDIT_PERSISTENCE_FAILED';
+  error.status = 503;
+  error.cause = cause;
+  return error;
+};
