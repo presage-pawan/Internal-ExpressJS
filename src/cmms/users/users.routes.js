@@ -8,6 +8,8 @@ import userTokenRoutes from './user-token/user-token.route.js';
 import userVerificationRoutes from './user-verification/user-verification.route.js';
 import { UserController } from './user.controller.js';
 import { requireInternalAction } from '../../middlewares/authorization.js';
+import mongoose from 'mongoose';
+import { CompanyService } from '../master/company/company.service.js';
 import {
     createUserValidator,
     updateUserValidator,
@@ -188,6 +190,50 @@ export default () => {
     router.use('/tokens', requireInternalAction('cmms.global.manage'), userTokenRoutes);
     router.use('/role-menus', requireInternalAction('cmms.global.manage'), roleMenuRoutes);
     router.use('/verifications', requireInternalAction('cmms.global.manage'), userVerificationRoutes);
+
+    /* ── Backward-compatible company aliases (specific paths first) ───────── */
+    router.use('/:companyId/logs', companyContext, userLogsRoutes);
+    router.use('/:companyId/tokens', companyContext, userTokenRoutes);
+    router.use('/:companyId/role-menus', companyContext, roleMenuRoutes);
+
+    router.post(
+        '/:companyId',
+        companyContext,
+        createUserValidator,
+        validate,
+        controller.create
+    );
+
+    router.route('/:companyId/:id')
+        .get(companyContext, controller.getById)
+        .put(companyContext, updateUserValidator, validate, controller.update)
+        .patch(companyContext, patchUserValidator, validate, controller.updatePartial)
+        .delete(companyContext, controller.delete);
+
+    // GET /:id historically served both a flat user lookup and a company user
+    // listing. Prefer a real company when the identifier resolves to one;
+    // otherwise require platform-admin authority and treat it as a user ID.
+    router.get('/:id', listUsersValidator, validate, async (req, res, next) => {
+        try {
+            const candidate = String(req.params.id || '');
+            if (mongoose.Types.ObjectId.isValid(candidate)) {
+                const company = await new CompanyService(req.db_type).findById(candidate);
+                if (company) {
+                    req.params.companyId = candidate;
+                    return companyContext(req, res, (error) => {
+                        if (error) return next(error);
+                        return controller.getAll(req, res, next);
+                    });
+                }
+            }
+            return requireInternalAction('cmms.global.manage')(req, res, (error) => {
+                if (error) return next(error);
+                return controller.getById(req, res, next);
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
 
     /* ── Flat user CRUD is platform-admin only ────────────────────────────── */
     router.use('/', requireInternalAction('cmms.global.manage'), buildUserCrudRouter());
