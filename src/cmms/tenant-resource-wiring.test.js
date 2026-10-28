@@ -33,7 +33,12 @@ for (const [base, field] of pairs) {
     const controller = fs.readFileSync(new URL(`./${base}.controller.js`, import.meta.url), 'utf8');
 
     assert.match(service, /buildResourceScopeFilter|buildWorkOrderIdentityFilter/, 'service must build a scoped identity filter');
-    assert.match(service, new RegExp(field), 'service must use the module tenant field');
+    if (service.includes('buildWorkOrderIdentityFilter')) {
+      const helper = fs.readFileSync(new URL('./work/work-order/work-order-scope.js', import.meta.url), 'utf8');
+      assert.match(helper, new RegExp(field), 'work-order scope helper must use the module tenant field');
+    } else {
+      assert.match(service, new RegExp(field), 'service must use the module tenant field');
+    }
     assert.match(controller, /companyId:\s*req\.companyId|,\s*req\.companyId\)/, 'controller must pass company context');
   });
 }
