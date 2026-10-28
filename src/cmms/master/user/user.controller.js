@@ -1,4 +1,5 @@
 import { validateObjectId } from '../../../utils/helper.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 import { UserService } from './user.service.js';
 import { PasswordService } from '../../../utils/bcrypt.js';
 import { RoleMenuService } from '../../../internal/role-menu/role-menu.service.js';
@@ -42,7 +43,7 @@ export class UserController {
 
   getUserById = async (req, res, next) => {
     try {
-      const user = await this.getService(req).getUserById(validateObjectId(req.params.id));
+      const user = await this.getService(req).getUserById(validateObjectId(req.params.id), req.companyId);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User fetched successfully', data: user });
     } catch (err) {
@@ -52,7 +53,7 @@ export class UserController {
 
   createUser = async (req, res, next) => {
     try {
-      const user = await this.getService(req).createUser(req.body);
+      const user = await this.getService(req).createUser(bindCompanyPayload(req.body, req.companyId, 'account_id'));
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(201).json({ status: true, message: 'User created successfully', data: user });
     } catch (err) {
@@ -63,7 +64,7 @@ export class UserController {
   updateUser = async (req, res, next) => {
     try {
       await this.assertCanUpdateExpiry(req);
-      const user = await this.getService(req).updateUser(validateObjectId(req.params.id), req.body);
+      const user = await this.getService(req).updateUser(validateObjectId(req.params.id), bindCompanyPayload(req.body, req.companyId, 'account_id'), req.companyId);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User updated successfully', data: user });
     } catch (err) {
@@ -74,7 +75,7 @@ export class UserController {
   updatePartial = async (req, res, next) => {
     try {
       await this.assertCanUpdateExpiry(req);
-      const user = await this.getService(req).updatePartial(validateObjectId(req.params.id), req.body);
+      const user = await this.getService(req).updatePartial(validateObjectId(req.params.id), bindCompanyPayload(req.body, req.companyId, 'account_id'), req.companyId);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User updated successfully', data: user });
     } catch (err) {
@@ -86,7 +87,7 @@ export class UserController {
     try {
       const { id } = req.params;
       const defaultPassword = await PasswordService.hash('Password@123');
-      const user = await this.getService(req).updateUser(validateObjectId(id), { password: defaultPassword });
+      const user = await this.getService(req).updateUser(validateObjectId(id), { password: defaultPassword }, req.companyId);
       if (!user) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'Password reset successfully' });
     } catch (err) {
@@ -96,7 +97,7 @@ export class UserController {
 
   deleteUser = async (req, res, next) => {
     try {
-      const deleted = await this.getService(req).deleteUser(validateObjectId(req.params.id), req.user?.id);
+      const deleted = await this.getService(req).deleteUser(validateObjectId(req.params.id), req.user?.id, req.companyId);
       if (!deleted) throw Object.assign(new Error('User not found'), { status: 400 });
       res.status(200).json({ status: true, message: 'User deleted successfully' });
     } catch (err) {
