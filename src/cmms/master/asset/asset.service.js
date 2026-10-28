@@ -5,6 +5,7 @@ import { LocationModel } from '../../schemas/location.model.js';
 import { MapUserAssetLocationModel } from '../../schemas/map-user-location.model.js';
 import { UserModel } from '../../schemas/users.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 const ASSET_DETAIL_FIELDS = [
   'asset_name',
@@ -195,7 +196,7 @@ export class AssetService {
       throw Object.assign(new Error('Invalid asset id'), { status: 400 });
     }
 
-    let query = this.model.findById(id);
+    let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'account_id'));
     if (options.include) {
       options.include.split(',').forEach(field => {
         query = query.populate(field.trim());
@@ -208,37 +209,37 @@ export class AssetService {
   }
 
   /* ================= UPDATE ================= */
-  async update(id, data) {
+  async update(id, data, companyId) {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw Object.assign(new Error('Invalid asset id'), { status: 400 });
     }
 
-    return this.model.findByIdAndUpdate(id, data, {
+    return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), data, {
       new: true,
       runValidators: true
     });
   }
 
   /* ================= PARTIAL UPDATE ================= */
-  async updatePartial(id, data) {
+  async updatePartial(id, data, companyId) {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw Object.assign(new Error('Invalid asset id'), { status: 400 });
     }
 
-    return this.model.findByIdAndUpdate(id, { $set: data }, {
+    return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { $set: data }, {
       new: true,
       runValidators: true
     });
   }
 
   /* ================= DELETE (SOFT) ================= */
-  async delete(id, updatedBy) {
+  async delete(id, updatedBy, companyId) {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw Object.assign(new Error('Invalid asset id'), { status: 400 });
     }
 
-    return this.model.findByIdAndUpdate(
-      id,
+    return this.model.findOneAndUpdate(
+      buildResourceScopeFilter(id, companyId, 'account_id'),
       { visible: false, updatedBy },
       { new: true }
     );
