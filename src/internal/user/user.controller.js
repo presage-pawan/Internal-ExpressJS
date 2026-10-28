@@ -1,6 +1,8 @@
 import { validateObjectId } from '../../utils/helper.js';
 import { UserService } from './user.service.js';
 import { RoleMenuService } from '../role-menu/role-menu.service.js';
+import { hasInternalAction } from '../../middlewares/authorization.js';
+import { pickAdminProfileFields, pickCreateUserFields, pickSelfProfileFields } from './user-field-policy.js';
 
 export class UserController {
 
@@ -33,11 +35,12 @@ export class UserController {
 
   createUser = async (req, res, next) => {
     try {
-      const user = await this.getUserService(req).createUser(req.body);
+      const payload = pickCreateUserFields(req.body);
+      const user = await this.getUserService(req).createUser(payload);
       if (!user) {
         throw Object.assign(new Error('User not found'), { status: 404 });
       }
-      const role = await this.getRoleService(req).createRole(req.body.user_role, user._id);
+      const role = await this.getRoleService(req).createRole(payload.user_role || user.user_role, user._id);
       if (!role) {
         throw Object.assign(new Error('Role not found'), { status: 404 });
       }
@@ -49,7 +52,11 @@ export class UserController {
 
   updateUser = async (req, res, next) => {
     try {
-      const user = await this.getUserService(req).updateUser(validateObjectId(req.params.id), req.body);
+      const targetId = validateObjectId(req.params.id);
+      const isAdmin = hasInternalAction(req.user, 'internal.users.manage');
+      const payload = isAdmin ? pickAdminProfileFields(req.body) : pickSelfProfileFields(req.body);
+      if (!Object.keys(payload).length) throw Object.assign(new Error('No permitted profile fields supplied'), { status: 400 });
+      const user = await this.getUserService(req).updateUser(targetId, payload);
       if (!user) {
         throw Object.assign(new Error('User not found'), { status: 404 });
       }
@@ -61,11 +68,32 @@ export class UserController {
 
   updatePartial = async (req, res, next) => {
     try {
-      const user = await this.getUserService(req).updatePartial(validateObjectId(req.params.id), req.body);
+      const targetId = validateObjectId(req.params.id);
+      const isAdmin = hasInternalAction(req.user, 'internal.users.manage');
+      const payload = isAdmin ? pickAdminProfileFields(req.body) : pickSelfProfileFields(req.body);
+      if (!Object.keys(payload).length) throw Object.assign(new Error('No permitted profile fields supplied'), { status: 400 });
+      const user = await this.getUserService(req).updatePartial(targetId, payload);
       if (!user) {
         throw Object.assign(new Error('User not found'), { status: 404 });
       }
       res.status(200).json({ status: true, message: 'User updated successfully', data: user });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updatePassword = async (req, res, next) => {
+    try {
+      const targetId = validateObjectId(req.params.id);
+      const actorId = String(req.user?.id || req.user?._id || '');
+      const isSelf = actorId === String(targetId);
+      const user = await this.getUserService(req).updatePassword(targetId, {
+        currentPassword: req.body?.currentPassword,
+        newPassword: req.body?.newPassword,
+        requireCurrentPassword: isSelf
+      });
+      if (!user) throw Object.assign(new Error('User not found'), { status: 404 });
+      res.status(200).json({ status: true, message: 'Password updated successfully' });
     } catch (err) {
       next(err);
     }
