@@ -16,27 +16,28 @@ import postRoutes from './post/post.route.js';
 import troubleshootGuideRoutes from './troubleshoot-guide/troubleshoot-guide.route.js';
 import locationRoutes from './location/location.route.js';
 import { companyContext } from '../../middlewares/company.js';
+import { requireInternalAction } from '../../middlewares/authorization.js';
 import userRoutes from './user/user.route.js';
 
 export default () => {
   const router = express.Router();
 
   router.use('/companies', companyRoutes);
-  router.use('/users', userRoutes);
-  router.use('/assets', assetsRoutes);
-  router.use('/parts', partRoutes);
-  router.use('/equipments', equipmentRoutes);
-  router.use('/schedules', scheduleRoutes);
-  router.use('/observations', observationRoutes);
-  router.use('/forms', formRoutes);
-  router.use('/form-categories', formCategoryRoutes);
-  router.use('/asset-reports', assetReportRoutes);
-  router.use('/location-reports', locationReportRoutes);
-  router.use('/floor-maps', floorMapRoutes);
-  router.use('/helps', helpRoutes);
-  router.use('/mail-logs', mailLogRoutes);
-  router.use('/posts', postRoutes);
-  router.use('/troubleshoot-guides', troubleshootGuideRoutes);
+  router.use('/users', requireInternalAction('cmms.global.manage'), userRoutes);
+  router.use('/assets', requireInternalAction('cmms.global.manage'), assetsRoutes);
+  router.use('/parts', requireInternalAction('cmms.global.manage'), partRoutes);
+  router.use('/equipments', requireInternalAction('cmms.global.manage'), equipmentRoutes);
+  router.use('/schedules', requireInternalAction('cmms.global.manage'), scheduleRoutes);
+  router.use('/observations', requireInternalAction('cmms.global.manage'), observationRoutes);
+  router.use('/forms', requireInternalAction('cmms.global.manage'), formRoutes);
+  router.use('/form-categories', requireInternalAction('cmms.global.manage'), formCategoryRoutes);
+  router.use('/asset-reports', requireInternalAction('cmms.global.manage'), assetReportRoutes);
+  router.use('/location-reports', requireInternalAction('cmms.global.manage'), locationReportRoutes);
+  router.use('/floor-maps', requireInternalAction('cmms.global.manage'), floorMapRoutes);
+  router.use('/helps', requireInternalAction('cmms.global.manage'), helpRoutes);
+  router.use('/mail-logs', requireInternalAction('cmms.global.manage'), mailLogRoutes);
+  router.use('/posts', requireInternalAction('cmms.global.manage'), postRoutes);
+  router.use('/troubleshoot-guides', requireInternalAction('cmms.global.manage'), troubleshootGuideRoutes);
 
   const companyRouter = express.Router({ mergeParams: true });
 
