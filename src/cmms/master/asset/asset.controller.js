@@ -1,4 +1,5 @@
 import { validateObjectId } from '../../../utils/helper.js';
+import { bindCompanyPayload } from '../../tenant-payload.js';
 import { AssetService } from './asset.service.js';
 
 export class AssetController {
@@ -40,7 +41,7 @@ export class AssetController {
     try {
       const { id } = req.params;
       const { include } = req.query;
-      const asset = await this.getService(req).getById(id, { include });
+      const asset = await this.getService(req).getById(id, { include, companyId: req.companyId });
       if (!asset) {
         throw Object.assign(new Error('Asset not found'), { status: 404 });
       }
@@ -52,7 +53,7 @@ export class AssetController {
 
   create = async (req, res, next) => {
     try {
-      const asset = await this.getService(req).create({ ...req.body, createdBy: req.user.id });
+      const asset = await this.getService(req).create({ ...bindCompanyPayload(req.body, req.companyId, 'account_id'), createdBy: req.user.id });
       if (!asset) {
         throw Object.assign(new Error('Asset not found'), { status: 404 });
       }
@@ -64,7 +65,7 @@ export class AssetController {
 
   update = async (req, res, next) => {
     try {
-      const asset = await this.getService(req).update(validateObjectId(req.params.id), { ...req.body, updatedBy: req.user.id });
+      const asset = await this.getService(req).update(validateObjectId(req.params.id), { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
       if (!asset) {
         throw Object.assign(new Error('Asset not found'), { status: 404 });
       }
@@ -76,7 +77,7 @@ export class AssetController {
 
   updatePartial = async (req, res, next) => {
     try {
-      const asset = await this.getService(req).updatePartial(validateObjectId(req.params.id), { ...req.body, updatedBy: req.user.id });
+      const asset = await this.getService(req).updatePartial(validateObjectId(req.params.id), { ...bindCompanyPayload(req.body, req.companyId, 'account_id'), updatedBy: req.user.id }, req.companyId);
       if (!asset) {
         throw Object.assign(new Error('Asset not found'), { status: 404 });
       }
@@ -88,7 +89,7 @@ export class AssetController {
 
   delete = async (req, res, next) => {
     try {
-      const asset = await this.getService(req).delete(validateObjectId(req.params.id), req.user.id);
+      const asset = await this.getService(req).delete(validateObjectId(req.params.id), req.user.id, req.companyId);
       if (!asset) {
         throw Object.assign(new Error('Asset not found'), { status: 404 });
       }
