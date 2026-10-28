@@ -1,5 +1,6 @@
 import { ObservationModel } from '../../schemas/observation.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class ObservationService {
     constructor(dbType = 'production') {
@@ -22,7 +23,7 @@ export class ObservationService {
     }
 
     async getById(id, options = {}) {
-        let query = this.model.findById(id);
+        let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'accountId'));
         if (options.include) {
             options.include.split(',').forEach(field => {
                 query = query.populate(field.trim());
@@ -36,15 +37,15 @@ export class ObservationService {
         return doc.save();
     }
 
-    async update(id, data) {
-        return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+    async update(id, data, companyId) {
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'accountId'), data, { new: true, runValidators: true });
     }
 
-    async updatePartial(id, data) {
-        return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+    async updatePartial(id, data, companyId) {
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'accountId'), { $set: data }, { new: true, runValidators: true });
     }
 
-    async delete(id) {
-        return this.model.findByIdAndUpdate(id, { visible: false }, { new: true });
+    async delete(id, companyId) {
+        return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'accountId'), { visible: false }, { new: true });
     }
 }
