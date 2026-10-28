@@ -32,6 +32,8 @@ jobs:
           node --check src/middlewares/company.js
           node --check src/internal/user/user-session-policy.js
           node --check src/internal/user/user.service.js
+          node --check src/internal/role-menu/role-menu-defaults.js
+          node --check src/internal/role-menu/role-menu.service.js
           node --check src/cmms/master/company/company-security.js
           node --check src/cmms/support-login/support-login.policy.js
           node --check src/cmms/support-login/support-login.service.js
