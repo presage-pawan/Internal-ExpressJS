@@ -2,6 +2,7 @@ import { TokenModel } from '../../schemas/user-token.model.js';
 import { AccountModel } from '../../schemas/company.model.js';
 import { getConnection } from '../../../_db/index.js';
 import mongoose from 'mongoose';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class UserTokenService {
     constructor(dbType = 'production') {
@@ -54,8 +55,8 @@ export class UserTokenService {
     }
 
     // ─── GET BY TOKEN ID ──────────────────────────────────────────────────────
-    async getById(id) {
-        return this.model.findById(id).lean();
+    async getById(id, companyId) {
+        return this.model.findOne(buildResourceScopeFilter(id, companyId, 'account_id')).lean();
     }
 
     // ─── GET ALL TOKENS FOR A USER ────────────────────────────────────────────
@@ -63,15 +64,22 @@ export class UserTokenService {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw Object.assign(new Error('Invalid userId'), { status: 400 });
         }
-        return this.getAll({ userId: new mongoose.Types.ObjectId(userId) }, options);
+        return this.getAll({
+            userId: new mongoose.Types.ObjectId(userId),
+            ...(options.companyId ? { account_id: options.companyId } : {})
+        }, options);
     }
 
     // ─── GET ALL TOKENS FOR AN ACCOUNT ────────────────────────────────────────
     async getByAccountId(accountId, options = {}) {
-        if (!mongoose.Types.ObjectId.isValid(accountId)) {
+        const effectiveAccountId = options.companyId || accountId;
+        if (options.companyId && String(options.companyId) !== String(accountId)) {
+            throw Object.assign(new Error('Account access denied'), { status: 403 });
+        }
+        if (!mongoose.Types.ObjectId.isValid(effectiveAccountId)) {
             throw Object.assign(new Error('Invalid accountId'), { status: 400 });
         }
-        const filter = { account_id: new mongoose.Types.ObjectId(accountId) };
+        const filter = { account_id: new mongoose.Types.ObjectId(effectiveAccountId) };
         if (options.principalType) {
             filter.principalType = options.principalType;
         }
@@ -97,36 +105,44 @@ export class UserTokenService {
     }
 
     // ─── CREATE (enforces 1 token per account for download tokens) ─────────────
-    async create(data) {
-        if (data.account_id && (data.principalType === 'download_data' || data.principalType === 'account')) {
+    async create(data, companyId) {
+        const payload = { ...data, ...(companyId ? { account_id: companyId } : {}) };
+        if (payload.account_id && (payload.principalType === 'download_data' || payload.principalType === 'account')) {
             await this.model.deleteMany({
-                account_id: new mongoose.Types.ObjectId(data.account_id),
-                principalType: data.principalType
+                account_id: new mongoose.Types.ObjectId(payload.account_id),
+                principalType: payload.principalType
             });
         }
-        const token = new this.model(data);
+        const token = new this.model(payload);
         return token.save();
     }
 
     // ─── DELETE SINGLE (revoke one token) ────────────────────────────────────
-    async delete(id) {
-        return this.model.findByIdAndDelete(id);
+    async delete(id, companyId) {
+        return this.model.findOneAndDelete(buildResourceScopeFilter(id, companyId, 'account_id'));
     }
 
     // ─── REVOKE ALL TOKENS FOR A USER ────────────────────────────────────────
-    async revokeAllByUserId(userId) {
+    async revokeAllByUserId(userId, companyId) {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw Object.assign(new Error('Invalid userId'), { status: 400 });
         }
-        return this.model.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
+        return this.model.deleteMany({
+            userId: new mongoose.Types.ObjectId(userId),
+            ...(companyId ? { account_id: companyId } : {})
+        });
     }
 
     // ─── REVOKE ALL TOKENS FOR AN ACCOUNT ────────────────────────────────────
-    async revokeAllByAccountId(accountId, principalType = null) {
-        if (!mongoose.Types.ObjectId.isValid(accountId)) {
+    async revokeAllByAccountId(accountId, principalType = null, companyId = null) {
+        const effectiveAccountId = companyId || accountId;
+        if (companyId && String(companyId) !== String(accountId)) {
+            throw Object.assign(new Error('Account access denied'), { status: 403 });
+        }
+        if (!mongoose.Types.ObjectId.isValid(effectiveAccountId)) {
             throw Object.assign(new Error('Invalid accountId'), { status: 400 });
         }
-        const filter = { account_id: new mongoose.Types.ObjectId(accountId) };
+        const filter = { account_id: new mongoose.Types.ObjectId(effectiveAccountId) };
         if (principalType) {
             filter.principalType = principalType;
         }
@@ -136,7 +152,7 @@ export class UserTokenService {
                 const accModel = this.accountModel;
                 if (accModel && typeof accModel.updateOne === 'function') {
                     await accModel.updateOne(
-                        { _id: new mongoose.Types.ObjectId(accountId) },
+                        { _id: new mongoose.Types.ObjectId(effectiveAccountId) },
                         { $unset: { download_api_key: '' } }
                     );
                 }
