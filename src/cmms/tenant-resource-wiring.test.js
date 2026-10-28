@@ -8,7 +8,6 @@ const pairs = [
   ['master/floor-map/floor-map', 'account_id'],
   ['master/form-category/form-category', 'account_id'],
   ['master/form/form', 'account_id'],
-  ['master/help/help', 'account_id'],
   ['master/location-report/location-report', 'account_id'],
   ['master/location/location', 'account_id'],
   ['master/mail-log/mail-log', 'account_id'],
