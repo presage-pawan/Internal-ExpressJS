@@ -74,6 +74,12 @@ export const REQUEST_LIMITS = {
   loginMax: Number(process.env.LOGIN_RATE_LIMIT_MAX || 20)
 };
 
+export const SUPPORT_LOGIN_DETAILS = {
+  serviceKey: String(process.env.SUPPORT_LOGIN_SERVICE_KEY || '').trim(),
+  productionApiUrl: String(process.env.CMMS_PRODUCTION_API_URL || 'https://app.presageinsights.ai/cmms_express').replace(/\/+$/, ''),
+  stagingApiUrl: String(process.env.CMMS_STAGING_API_URL || 'https://new.presageinsights.ai/cmms_express').replace(/\/+$/, '')
+};
+
 export const MAIL_DETAILS = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
