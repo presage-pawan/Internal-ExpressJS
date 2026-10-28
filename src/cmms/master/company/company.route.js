@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { CompanyController } from './company.controller.js';
 import { auth } from '../../../auth.js';
 import { validate } from '../../../middlewares/validate.js';
+import { requireInternalAction } from '../../../middlewares/authorization.js';
+import { requireCompanyAccess } from '../../../middlewares/company-access.js';
 import {
   createCompanyValidator,
   listCompanyValidator,
@@ -53,32 +55,32 @@ router.route('/')
    *       201:
    *         description: Company created
    */
-  .post(auth, createCompanyValidator, validate, controller.create);
+  .post(auth, requireInternalAction('internal.companies.manage'), createCompanyValidator, validate, controller.create);
 
 router.route('/:id/account-role-menu')
-  .get(auth, controller.getAccountRoleMenu)
-  .put(auth, updateAccountRoleMenuValidator, validate, controller.updateAccountRoleMenu);
+  .get(auth, requireCompanyAccess('id'), controller.getAccountRoleMenu)
+  .put(auth, requireCompanyAccess('id'), updateAccountRoleMenuValidator, validate, controller.updateAccountRoleMenu);
 
 router.route('/:id/account-role-menu/reset')
-  .post(auth, resetAccountRoleMenuValidator, validate, controller.resetAccountRoleMenu);
+  .post(auth, requireCompanyAccess('id'), resetAccountRoleMenuValidator, validate, controller.resetAccountRoleMenu);
 
 router.route('/:id/api-key')
-  .get(auth, controller.getApiKey)
-  .post(auth, controller.generateApiKey)
-  .put(auth, controller.generateApiKey)
-  .delete(auth, controller.removeApiKey);
+  .get(auth, requireInternalAction('internal.company-keys.manage'), controller.getApiKey)
+  .post(auth, requireInternalAction('internal.company-keys.manage'), controller.generateApiKey)
+  .put(auth, requireInternalAction('internal.company-keys.manage'), controller.generateApiKey)
+  .delete(auth, requireInternalAction('internal.company-keys.manage'), controller.removeApiKey);
 
 router.route('/:id/api-key/regenerate')
-  .post(auth, controller.generateApiKey);
+  .post(auth, requireInternalAction('internal.company-keys.manage'), controller.generateApiKey);
 
 router.route('/:id/api-key/status')
-  .patch(auth, controller.toggleApiKeyStatus)
-  .put(auth, controller.toggleApiKeyStatus);
+  .patch(auth, requireInternalAction('internal.company-keys.manage'), controller.toggleApiKeyStatus)
+  .put(auth, requireInternalAction('internal.company-keys.manage'), controller.toggleApiKeyStatus);
 
 router.route('/:id/download-api-key')
-  .get(auth, controller.getDownloadApiKey)
-  .post(auth, controller.generateDownloadApiKey)
-  .delete(auth, controller.removeDownloadApiKey);
+  .get(auth, requireInternalAction('internal.company-keys.manage'), controller.getDownloadApiKey)
+  .post(auth, requireInternalAction('internal.company-keys.manage'), controller.generateDownloadApiKey)
+  .delete(auth, requireInternalAction('internal.company-keys.manage'), controller.removeDownloadApiKey);
 
 /**
  * @swagger
@@ -105,7 +107,7 @@ router.route('/:id/download-api-key')
  *         description: Company subscription updated
  */
 router.route('/:id/subscription')
-  .patch(auth, updateSubscriptionValidator, validate, controller.updateSubscription);
+  .patch(auth, requireInternalAction('internal.companies.manage'), updateSubscriptionValidator, validate, controller.updateSubscription);
 
 /**
  * @swagger
@@ -126,7 +128,7 @@ router.route('/:id/subscription')
  *         description: Company details
  */
 router.route('/:id')
-  .get(auth, controller.getById)
+  .get(auth, requireCompanyAccess('id'), controller.getById)
   /**
    * @swagger
    * /api/cmms/master/companies/{id}:
@@ -145,7 +147,7 @@ router.route('/:id')
    *       200:
    *         description: Company updated
    */
-  .put(auth, updateCompanyValidator, validate, controller.update)
+  .put(auth, requireInternalAction('internal.companies.manage'), updateCompanyValidator, validate, controller.update)
   /**
    * @swagger
    * /api/cmms/master/companies/{id}:
@@ -164,7 +166,7 @@ router.route('/:id')
    *       200:
    *         description: Company updated
    */
-  .patch(auth, updateCompanyValidator, validate, controller.updatePartial)
+  .patch(auth, requireInternalAction('internal.companies.manage'), updateCompanyValidator, validate, controller.updatePartial)
   /**
    * @swagger
    * /api/cmms/master/companies/{id}:
@@ -183,6 +185,6 @@ router.route('/:id')
    *       200:
    *         description: Company deleted
    */
-  .delete(auth, controller.delete);
+  .delete(auth, requireInternalAction('internal.companies.manage'), controller.delete);
 
 export default router;
