@@ -67,22 +67,32 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$
 export class CompanyService {
 
     constructor(dbType = 'production') {
-        this.dbType = dbType;
+        if (dbType && typeof dbType === 'object') {
+            this.connectionOverride = dbType;
+            this.dbType = 'production';
+        } else {
+            this.dbType = dbType;
+        }
+    }
+
+    get connection() {
+        return this.connectionOverride || getConnection(this.dbType, 'cmms');
     }
 
     get model() {
-        const connection = getConnection(this.dbType, 'cmms');
-        return AccountModel(connection);
+        return AccountModel(this.connection);
     }
 
     get auditModel() {
-        const connection = getConnection(this.dbType, 'cmms');
-        return AccountRoleMenuAuditModel(connection);
+        return AccountRoleMenuAuditModel(this.connection);
     }
 
     get apiKeyModel() {
-        const connection = getConnection(this.dbType, 'cmms');
-        return AccountApiKeyModel(connection);
+        return AccountApiKeyModel(this.connection);
+    }
+
+    get securityAuditModel() {
+        return SecurityAuditModel(this.connection);
     }
 
     async create(payload) {
@@ -313,7 +323,7 @@ export class CompanyService {
     }
 
     async updateAccountRoleMenu(accountId, payload, internalUserId) {
-        const connection = getConnection(this.dbType, 'cmms');
+        const connection = this.connection;
         const session = await connection.startSession();
         let result;
 
@@ -702,10 +712,10 @@ export class CompanyService {
             await session.withTransaction(async () => {
                 result = await mutation({
                     session,
-                    accountModel: AccountModel(connection),
-                    apiKeyModel: AccountApiKeyModel(connection)
+                    accountModel: this.model,
+                    apiKeyModel: this.apiKeyModel
                 });
-                await SecurityAuditModel(connection).create(
+                await this.securityAuditModel.create(
                     [buildSecurityAuditEvent(auditInput)],
                     { session }
                 );
