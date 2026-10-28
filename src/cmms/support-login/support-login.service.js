@@ -2,15 +2,15 @@ import { SUPPORT_LOGIN_DETAILS } from '../../configDB.js';
 import { buildSupportLoginRequest, resolveSupportLoginBaseUrl } from './support-login.policy.js';
 
 export class SupportLoginService {
-  async createGrant({ email, companyId, dbType }) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const normalizedCompanyId = String(companyId || '').trim();
-    if (!normalizedEmail || !normalizedCompanyId) {
-      throw Object.assign(new Error('email and company_id are required'), { status: 400 });
-    }
-
+  async createGrant({ email, companyId, actorId, dbType, stateChallenge }) {
     const baseUrl = resolveSupportLoginBaseUrl(dbType, SUPPORT_LOGIN_DETAILS);
-    const request = buildSupportLoginRequest(normalizedEmail, normalizedCompanyId, SUPPORT_LOGIN_DETAILS.serviceKey);
+    const request = buildSupportLoginRequest({
+      email,
+      companyId,
+      actorId,
+      environment: dbType,
+      stateChallenge
+    }, SUPPORT_LOGIN_DETAILS.serviceKey);
     const response = await fetch(`${baseUrl}/api/users/create_external_token`, request);
 
     let payload = null;
