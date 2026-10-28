@@ -10,7 +10,9 @@ export class SupportLoginController {
       const data = await this.service.createGrant({
         email: req.body?.email,
         companyId: req.body?.company_id,
-        dbType: req.db_type
+        actorId: req.user?.id || req.user?._id,
+        dbType: req.db_type,
+        stateChallenge: req.body?.state_challenge
       });
       return res.status(200).json(data);
     } catch (error) {
