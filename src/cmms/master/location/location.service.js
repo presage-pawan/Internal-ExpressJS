@@ -1,5 +1,6 @@
 import { LocationModel } from '../../schemas/location.model.js';
 import { getConnection } from '../../../_db/index.js';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class LocationService {
 
@@ -23,7 +24,7 @@ export class LocationService {
   }
 
   async getById(id, options = {}) {
-    let query = this.model.findById(id);
+    let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'account_id'));
     if (options.include) {
       options.include.split(',').forEach(field => {
         query = query.populate(field.trim());
@@ -39,15 +40,15 @@ export class LocationService {
     return location.save();
   }
 
-  async update(id, data) {
-    return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+  async update(id, data, companyId) {
+    return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), data, { new: true, runValidators: true });
   }
 
-  async updatePartial(id, data) {
-    return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+  async updatePartial(id, data, companyId) {
+    return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { $set: data }, { new: true, runValidators: true });
   }
 
-  async delete(id, updatedBy) {
-    return this.model.findByIdAndUpdate(id, { visible: false, updatedBy }, { new: true });
+  async delete(id, updatedBy, companyId) {
+    return this.model.findOneAndUpdate(buildResourceScopeFilter(id, companyId, 'account_id'), { visible: false, updatedBy }, { new: true });
   }
 }
