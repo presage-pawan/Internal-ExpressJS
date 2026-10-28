@@ -11,6 +11,7 @@ import { canAccessPrivateUpload, normalizePrivateUploadContext } from './private
 const PUBLIC_UPLOAD_ROOT = path.join(process.cwd(), 'blogs');
 const PRIVATE_UPLOAD_ROOT = path.join(process.cwd(), 'uploadFiles');
 const SIGNATURE_READ_BYTES = 16;
+const uploadFilesService = new UploadFilesService();
 
 class UploadService {
     get metadataModel() {
@@ -96,7 +97,7 @@ class UploadService {
             throw Object.assign(new Error('Folder name is required'), { status: 400 });
         }
 
-        const data = await UploadFilesService.uploadBase64Image(baseImage, folderName);
+        const data = await uploadFilesService.uploadBase64Image(baseImage, folderName);
         if (data.visibility === 'public') return data;
 
         try {
@@ -109,7 +110,7 @@ class UploadService {
             }]);
             return data;
         } catch (error) {
-            await UploadFilesService.deleteBase64Image(data.fileName, folderName);
+            await uploadFilesService.deleteBase64Image(data.fileName, folderName);
             throw error;
         }
     }
