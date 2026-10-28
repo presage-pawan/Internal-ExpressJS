@@ -11,6 +11,8 @@ import {
     validateAccountRoleMenu
 } from './account-role-menu.js';
 import { buildPermissionVersionFilter } from './account-permission-transaction.js';
+import { SecurityAuditModel } from '../../../schemas/security-audit.model.js';
+import { buildSecurityAuditEvent } from '../../../security/security-audit.js';
 
 const ACCOUNT_UPDATE_FIELDS = [
     'account_name',
@@ -688,15 +690,41 @@ export class CompanyService {
         };
     }
 
-    async generateApiKey(id) {
-        const account = await this.model.findById(id);
-        if (!account) {
-            throw Object.assign(new Error('Account not found'), { status: 404 });
+    async withCredentialAudit(auditInput, mutation) {
+        if (!auditInput?.action) {
+            throw Object.assign(new Error('Credential audit context is required'), { status: 500 });
         }
-        const accountApiKey = crypto.randomBytes(36).toString('base64url');
-        let keyDoc = null;
-        if (this.apiKeyModel && typeof this.apiKeyModel.findOneAndUpdate === 'function') {
-            keyDoc = await this.apiKeyModel.findOneAndUpdate(
+
+        const connection = getConnection(this.dbType, 'cmms');
+        const session = await connection.startSession();
+        let result;
+        try {
+            await session.withTransaction(async () => {
+                result = await mutation({
+                    session,
+                    accountModel: AccountModel(connection),
+                    apiKeyModel: AccountApiKeyModel(connection)
+                });
+                await SecurityAuditModel(connection).create(
+                    [buildSecurityAuditEvent(auditInput)],
+                    { session }
+                );
+            });
+            return result;
+        } finally {
+            await session.endSession();
+        }
+    }
+
+    async generateApiKey(id, auditInput) {
+        return this.withCredentialAudit(auditInput, async ({ session, accountModel, apiKeyModel }) => {
+            const account = await accountModel.findById(id).session(session);
+            if (!account) {
+                throw Object.assign(new Error('Account not found'), { status: 404 });
+            }
+
+            const accountApiKey = crypto.randomBytes(36).toString('base64url');
+            const keyDoc = await apiKeyModel.findOneAndUpdate(
                 { account_id: account._id },
                 {
                     $set: {
@@ -705,108 +733,109 @@ export class CompanyService {
                         visible: true
                     }
                 },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                { upsert: true, new: true, setDefaultsOnInsert: true, session }
             );
-        }
-        account.download_api_key = accountApiKey;
-        await account.save();
 
-        return {
-            account_id: account._id,
-            account_name: account.account_name,
-            api_key: accountApiKey,
-            download_api_key: accountApiKey,
-            external_token: accountApiKey,
-            type: keyDoc?.type || 'download_api_key',
-            visible: true,
-            is_active: true,
-            createdAt: keyDoc?.createdAt || null,
-            updatedAt: keyDoc?.updatedAt || null
-        };
+            account.download_api_key = accountApiKey;
+            await account.save({ session });
+
+            return {
+                account_id: account._id,
+                account_name: account.account_name,
+                api_key: accountApiKey,
+                download_api_key: accountApiKey,
+                external_token: accountApiKey,
+                type: keyDoc?.type || 'download_api_key',
+                visible: true,
+                is_active: true,
+                createdAt: keyDoc?.createdAt || null,
+                updatedAt: keyDoc?.updatedAt || null
+            };
+        });
     }
 
-    async removeApiKey(id) {
-        const account = await this.model.findById(id);
-        if (!account) {
-            throw Object.assign(new Error('Account not found'), { status: 404 });
-        }
-        // Soft deactivate: set visible = false in account_api_key collection. DO NOT DELETE ANY API KEY!
-        let keyDoc = null;
-        if (this.apiKeyModel && typeof this.apiKeyModel.findOneAndUpdate === 'function') {
-            keyDoc = await this.apiKeyModel.findOneAndUpdate(
+    async removeApiKey(id, auditInput) {
+        return this.withCredentialAudit(auditInput, async ({ session, accountModel, apiKeyModel }) => {
+            const account = await accountModel.findById(id).session(session);
+            if (!account) {
+                throw Object.assign(new Error('Account not found'), { status: 404 });
+            }
+
+            const keyDoc = await apiKeyModel.findOneAndUpdate(
                 { account_id: account._id },
                 { $set: { visible: false } },
-                { new: true }
+                { new: true, session }
             );
-        }
-        return {
-            account_id: account._id,
-            account_name: account.account_name,
-            api_key: keyDoc?.download_api_key || account.download_api_key || null,
-            download_api_key: keyDoc?.download_api_key || account.download_api_key || null,
-            visible: false,
-            is_active: false,
-            type: keyDoc?.type || 'download_api_key',
-            message: 'Account API key deactivated successfully'
-        };
+
+            return {
+                account_id: account._id,
+                account_name: account.account_name,
+                api_key: keyDoc?.download_api_key || account.download_api_key || null,
+                download_api_key: keyDoc?.download_api_key || account.download_api_key || null,
+                visible: false,
+                is_active: false,
+                type: keyDoc?.type || 'download_api_key',
+                message: 'Account API key deactivated successfully'
+            };
+        });
     }
 
-    async toggleApiKeyStatus(id, visible) {
-        const account = await this.model.findById(id);
-        if (!account) {
-            throw Object.assign(new Error('Account not found'), { status: 404 });
-        }
-        let keyDoc = null;
-        if (this.apiKeyModel && typeof this.apiKeyModel.findOne === 'function') {
-            keyDoc = await this.apiKeyModel.findOne({ account_id: account._id }).sort({ updatedAt: -1, createdAt: -1 });
+    async toggleApiKeyStatus(id, visible, auditInput) {
+        return this.withCredentialAudit(auditInput, async ({ session, accountModel, apiKeyModel }) => {
+            const account = await accountModel.findById(id).session(session);
+            if (!account) {
+                throw Object.assign(new Error('Account not found'), { status: 404 });
+            }
+
+            let keyDoc = await apiKeyModel
+                .findOne({ account_id: account._id })
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .session(session);
+
             if (!keyDoc && account.download_api_key) {
-                try {
-                    keyDoc = await this.apiKeyModel.create({
-                        account_id: account._id,
-                        download_api_key: account.download_api_key,
-                        type: 'download_api_key',
-                        visible: true
-                    });
-                } catch {
-                    // Non-blocking fallback
-                }
+                const created = await apiKeyModel.create([{
+                    account_id: account._id,
+                    download_api_key: account.download_api_key,
+                    type: 'download_api_key',
+                    visible: true
+                }], { session });
+                keyDoc = created?.[0] || null;
             }
-        }
-        if (!keyDoc && !account.download_api_key) {
-            throw Object.assign(new Error('No API key found for this account'), { status: 404 });
-        }
-        const currentVisible = keyDoc ? Boolean(keyDoc.visible) : true;
-        const nextVisible = typeof visible === 'boolean' ? visible : !currentVisible;
-        if (keyDoc) {
-            keyDoc.visible = nextVisible;
-            if (typeof keyDoc.save === 'function') {
-                await keyDoc.save();
-            } else if (this.apiKeyModel && typeof this.apiKeyModel.updateOne === 'function') {
-                await this.apiKeyModel.updateOne({ _id: keyDoc._id }, { $set: { visible: nextVisible } });
+
+            if (!keyDoc && !account.download_api_key) {
+                throw Object.assign(new Error('No API key found for this account'), { status: 404 });
             }
-        }
-        return {
-            account_id: account._id,
-            account_name: account.account_name,
-            api_key: keyDoc?.download_api_key || account.download_api_key,
-            download_api_key: keyDoc?.download_api_key || account.download_api_key,
-            visible: nextVisible,
-            is_active: nextVisible,
-            type: keyDoc?.type || 'download_api_key',
-            createdAt: keyDoc?.createdAt || null,
-            updatedAt: keyDoc?.updatedAt || null
-        };
+
+            const currentVisible = keyDoc ? Boolean(keyDoc.visible) : true;
+            const nextVisible = typeof visible === 'boolean' ? visible : !currentVisible;
+            if (keyDoc) {
+                keyDoc.visible = nextVisible;
+                await keyDoc.save({ session });
+            }
+
+            return {
+                account_id: account._id,
+                account_name: account.account_name,
+                api_key: keyDoc?.download_api_key || account.download_api_key,
+                download_api_key: keyDoc?.download_api_key || account.download_api_key,
+                visible: nextVisible,
+                is_active: nextVisible,
+                type: keyDoc?.type || 'download_api_key',
+                createdAt: keyDoc?.createdAt || null,
+                updatedAt: keyDoc?.updatedAt || null
+            };
+        });
     }
 
     async getDownloadApiKey(id) {
         return this.getApiKey(id);
     }
 
-    async generateDownloadApiKey(id) {
-        return this.generateApiKey(id);
+    async generateDownloadApiKey(id, auditInput) {
+        return this.generateApiKey(id, auditInput);
     }
 
-    async removeDownloadApiKey(id) {
-        return this.removeApiKey(id);
+    async removeDownloadApiKey(id, auditInput) {
+        return this.removeApiKey(id, auditInput);
     }
 }
