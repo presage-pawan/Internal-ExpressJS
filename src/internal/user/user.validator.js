@@ -9,7 +9,7 @@ export const createUserValidator = [
         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
         .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
         .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-        .matches(/d/).withMessage('Password must contain a number'),
+        .matches(/\d/).withMessage('Password must contain a number'),
     body('phone_no').optional().trim().isString(),
     body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Invalid email format'),
     body('emailStatus').optional().isBoolean(),
@@ -41,5 +41,5 @@ export const passwordChangeValidator = [
         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
         .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
         .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
-        .matches(/d/).withMessage('Password must contain a number')
+        .matches(/\d/).withMessage('Password must contain a number')
 ];
