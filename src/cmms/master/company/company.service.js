@@ -705,7 +705,7 @@ export class CompanyService {
             throw Object.assign(new Error('Credential audit context is required'), { status: 500 });
         }
 
-        const connection = getConnection(this.dbType, 'cmms');
+        const connection = this.connection;
         const session = await connection.startSession();
         let result;
         try {
