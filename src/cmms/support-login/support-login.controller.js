@@ -17,16 +17,15 @@ export class SupportLoginController {
       metadata: { purpose: 'support-login' }
     };
 
+    let data;
     try {
-      const data = await this.service.createGrant({
+      data = await this.service.createGrant({
         email: req.body?.email,
         companyId: req.body?.company_id,
         actorId: req.user?.id || req.user?._id,
         dbType: req.db_type,
         stateChallenge: req.body?.state_challenge
       });
-      await writeSecurityAudit({ ...auditBase, outcome: 'success' });
-      return res.status(200).json(data);
     } catch (error) {
       await writeSecurityAudit({
         ...auditBase,
@@ -36,5 +35,17 @@ export class SupportLoginController {
       });
       return next(error);
     }
+
+    try {
+      await writeSecurityAudit({ ...auditBase, outcome: 'success' }, { required: true });
+    } catch (auditError) {
+      // The CMMS grant has already been created but has not been returned to the
+      // browser. It is one-use and expires after 60 seconds, so fail closed and
+      // let the unreturned grant expire instead of creating an unaudited session.
+      auditError.operationOutcome = 'support_grant_created_unreturned';
+      return next(auditError);
+    }
+
+    return res.status(200).json(data);
   };
 }
