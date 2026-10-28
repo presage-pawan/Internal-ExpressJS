@@ -1,7 +1,7 @@
 import { EquipmentSetModel } from '../../schemas/equipment.model.js';
 import { LocationModel } from '../../schemas/location.model.js';
 import { getConnection } from '../../../_db/index.js';
-import { equipmentBelongsToAllowedLocations } from './equipment-scope.js';
+import { buildEquipmentMutationFilter, equipmentBelongsToAllowedLocations } from './equipment-scope.js';
 
 export class EquipmentService {
     constructor(dbType = 'production') {
@@ -66,24 +66,31 @@ export class EquipmentService {
     }
 
     async update(id, data, companyId) {
-        const existing = await this.getById(id, { companyId });
+        const allowed = companyId ? await this.allowedLocationIds(companyId) : null;
+        const filter = buildEquipmentMutationFilter(id, allowed);
+        const existing = await this.model.findOne(filter).lean();
         if (!existing) return null;
         const candidate = { ...existing, ...data };
         await this.assertCompanyScope(candidate, companyId);
-        return this.model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(filter, data, { new: true, runValidators: true });
     }
 
     async updatePartial(id, data, companyId) {
-        const existing = await this.getById(id, { companyId });
+        const allowed = companyId ? await this.allowedLocationIds(companyId) : null;
+        const filter = buildEquipmentMutationFilter(id, allowed);
+        const existing = await this.model.findOne(filter).lean();
         if (!existing) return null;
         const candidate = { ...existing, ...data };
         await this.assertCompanyScope(candidate, companyId);
-        return this.model.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+        return this.model.findOneAndUpdate(filter, { $set: data }, { new: true, runValidators: true });
     }
 
     async delete(id, companyId) {
-        const existing = await this.getById(id, { companyId });
-        if (!existing) return null;
-        return this.model.findByIdAndUpdate(id, { visible: false }, { new: true });
+        const allowed = companyId ? await this.allowedLocationIds(companyId) : null;
+        return this.model.findOneAndUpdate(
+            buildEquipmentMutationFilter(id, allowed),
+            { visible: false },
+            { new: true }
+        );
     }
 }
