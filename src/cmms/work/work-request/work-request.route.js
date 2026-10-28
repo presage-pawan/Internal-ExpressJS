@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { WorkRequestController } from './work-request.controller.js';
 import { auth } from '../../../auth.js';
+import { canonicalWorkflowRequired } from '../../../middlewares/canonical-workflow.js';
 import { validate } from '../../../middlewares/validate.js';
 import { createValidator, updateValidator } from './work-request.validator.js';
 
@@ -46,7 +47,7 @@ router.route('/')
      *       201:
      *         description: Work request created
      */
-    .post(auth, createValidator, validate, controller.create);
+    .post(auth, canonicalWorkflowRequired, createValidator, validate, controller.create);
 
 /**
  * @swagger
@@ -86,7 +87,7 @@ router.route('/:id')
      *       200:
      *         description: Work request updated
      */
-    .put(auth, updateValidator, validate, controller.update)
+    .put(auth, canonicalWorkflowRequired, updateValidator, validate, controller.update)
     /**
      * @swagger
      * /api/cmms/work/work-requests/{id}:
@@ -105,7 +106,7 @@ router.route('/:id')
      *       200:
      *         description: Work request updated
      */
-    .patch(auth, updateValidator, validate, controller.updatePartial)
+    .patch(auth, canonicalWorkflowRequired, updateValidator, validate, controller.updatePartial)
     /**
      * @swagger
      * /api/cmms/work/work-requests/{id}:
@@ -124,6 +125,6 @@ router.route('/:id')
      *       200:
      *         description: Work request deleted
      */
-    .delete(auth, controller.delete);
+    .delete(auth, canonicalWorkflowRequired, controller.delete);
 
 export default router;
