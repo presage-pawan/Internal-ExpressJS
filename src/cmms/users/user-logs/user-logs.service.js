@@ -1,6 +1,7 @@
 import { UserLogModel } from '../../schemas/user-logs.model.js';
 import { getConnection } from '../../../_db/index.js';
 import mongoose from 'mongoose';
+import { buildResourceScopeFilter } from '../../resource-scope.js';
 
 export class UserLogService {
     constructor(dbType = 'production') {
@@ -48,7 +49,7 @@ export class UserLogService {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        let query = this.model.findById(id);
+        let query = this.model.findOne(buildResourceScopeFilter(id, options.companyId, 'account_id'));
         if (options.include) {
             options.include.split(',').forEach(field => {
                 query = query.populate(field.trim());
@@ -62,7 +63,10 @@ export class UserLogService {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw Object.assign(new Error('Invalid userId'), { status: 400 });
         }
-        return this.getAll({ userId: new mongoose.Types.ObjectId(userId) }, options);
+        return this.getAll({
+            userId: new mongoose.Types.ObjectId(userId),
+            ...(options.companyId ? { account_id: options.companyId } : {})
+        }, options);
     }
 
     // ─── CREATE ───────────────────────────────────────────────────────────────
@@ -72,19 +76,22 @@ export class UserLogService {
     }
 
     // ─── HARD DELETE (audit logs — permanent removal allowed) ────────────────
-    async delete(id) {
+    async delete(id, companyId) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             throw Object.assign(new Error('Invalid ID'), { status: 400 });
         }
-        return this.model.findByIdAndDelete(id);
+        return this.model.findOneAndDelete(buildResourceScopeFilter(id, companyId, 'account_id'));
     }
 
     // ─── BULK DELETE by userId ────────────────────────────────────────────────
-    async deleteByUserId(userId) {
+    async deleteByUserId(userId, companyId) {
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw Object.assign(new Error('Invalid userId'), { status: 400 });
         }
-        return this.model.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
+        return this.model.deleteMany({
+            userId: new mongoose.Types.ObjectId(userId),
+            ...(companyId ? { account_id: companyId } : {})
+        });
     }
 }
 
