@@ -3,6 +3,7 @@ import { auth } from '../../auth.js';
 import { validate } from '../../middlewares/validate.js';
 import { createUserValidator, updateUserValidator } from './user.validator.js';
 import { UserController } from './user.controller.js';
+import { requireInternalAction, requireSelfOrInternalAction } from '../../middlewares/authorization.js';
 
 const router = Router();
 const controller = new UserController();
@@ -26,7 +27,7 @@ const controller = new UserController();
  *       200:
  *         description: List of internal users
  */
-router.get('/', auth, controller.getAllUsers);
+router.get('/', auth, requireInternalAction('internal.users.manage'), controller.getAllUsers);
 
 /**
  * @swagger
@@ -46,7 +47,7 @@ router.get('/', auth, controller.getAllUsers);
  *       200:
  *         description: User details
  */
-router.get('/:id', auth, controller.getUserById);
+router.get('/:id', auth, requireSelfOrInternalAction('internal.users.manage'), controller.getUserById);
 
 /**
  * @swagger
@@ -66,7 +67,7 @@ router.get('/:id', auth, controller.getUserById);
  *       201:
  *         description: User created
  */
-router.post('/', auth, createUserValidator, validate, controller.createUser);
+router.post('/', auth, requireInternalAction('internal.users.manage'), createUserValidator, validate, controller.createUser);
 
 /**
  * @swagger
@@ -114,8 +115,8 @@ router.post('/', auth, createUserValidator, validate, controller.createUser);
  *       200:
  *         description: User deleted
  */
-router.put('/:id', auth, updateUserValidator, validate, controller.updateUser);
-router.patch('/:id', auth, updateUserValidator, validate, controller.updatePartial);
-router.delete('/:id', auth, controller.deleteUser);
+router.put('/:id', auth, requireInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updateUser);
+router.patch('/:id', auth, requireInternalAction('internal.users.manage'), updateUserValidator, validate, controller.updatePartial);
+router.delete('/:id', auth, requireInternalAction('internal.users.manage'), controller.deleteUser);
 
 export default router;
