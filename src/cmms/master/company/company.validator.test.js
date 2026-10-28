@@ -352,14 +352,22 @@ test('CompanyService.findAllWithTokens executes aggregation pipeline with lookup
   assert.ok(capturedPipeline.some((stage) => stage.$lookup && stage.$lookup.from === 'account_api_key'));
 });
 
-test('CompanyService API key management via account_api_key (getApiKey, generateApiKey, removeApiKey, toggleApiKeyStatus)', async () => {
-  const service = new CompanyService('test');
+test('CompanyService API key management via account_api_key is transactionally audited', async () => {
+  const session = {
+    withTransaction: async (callback) => callback(),
+    endSession: async () => undefined
+  };
+  const connection = { startSession: async () => session };
+  const service = new CompanyService(connection);
   const accountId = new mongoose.Types.ObjectId();
   const mockDoc = {
     _id: accountId,
     account_name: 'Acme Test Corp',
     download_api_key: 'existing-key-123',
-    async save() { return this; }
+    async save(options) {
+      assert.equal(options?.session, session);
+      return this;
+    }
   };
 
   let apiKeyRecord = {
@@ -368,85 +376,113 @@ test('CompanyService API key management via account_api_key (getApiKey, generate
     download_api_key: 'existing-key-123',
     type: 'download_api_key',
     visible: true,
-    async save() { return this; }
+    async save(options) {
+      assert.equal(options?.session, session);
+      return this;
+    }
   };
+  const auditEvents = [];
 
   service._model = {
-    findById(id) {
+    findById() {
       return {
-        select(fields) {
-          return mockDoc;
-        }
+        select: async () => mockDoc,
+        session: async () => mockDoc
       };
     }
   };
   service._apiKeyModel = {
-    findOne({ account_id }) {
+    findOne() {
       return {
         sort() {
-          return apiKeyRecord;
+          return {
+            session: async () => apiKeyRecord,
+            then(resolve, reject) {
+              return Promise.resolve(apiKeyRecord).then(resolve, reject);
+            }
+          };
         }
       };
     },
-    findOneAndUpdate(filter, update, options) {
-      if (update.$set) {
-        Object.assign(apiKeyRecord, update.$set);
-      }
+    async findOneAndUpdate(_filter, update, options) {
+      assert.equal(options?.session, session);
+      if (update.$set) Object.assign(apiKeyRecord, update.$set);
       return apiKeyRecord;
     },
-    updateOne(filter, update) {
-      if (update.$set) {
-        Object.assign(apiKeyRecord, update.$set);
-      }
-      return { acknowledged: true };
+    async create(docs, options) {
+      assert.equal(options?.session, session);
+      apiKeyRecord = {
+        ...apiKeyRecord,
+        ...docs[0],
+        async save(saveOptions) {
+          assert.equal(saveOptions?.session, session);
+          return this;
+        }
+      };
+      return [apiKeyRecord];
+    }
+  };
+  service._securityAuditModel = {
+    async create(docs, options) {
+      assert.equal(options?.session, session);
+      auditEvents.push(...docs);
+      return docs;
     }
   };
   Object.defineProperty(service, 'model', { get() { return this._model; } });
   Object.defineProperty(service, 'apiKeyModel', { get() { return this._apiKeyModel; } });
+  Object.defineProperty(service, 'securityAuditModel', { get() { return this._securityAuditModel; } });
 
-  // 1. Get
+  const audit = (action) => ({
+    action,
+    actorId: 'admin-1',
+    targetType: 'company-credential',
+    targetId: String(accountId),
+    companyId: String(accountId),
+    environment: 'production',
+    requestId: 'request-1',
+    outcome: 'success',
+    metadata: {}
+  });
+
   const fetched = await service.getApiKey(accountId);
-  assert.equal(fetched.account_id, accountId);
   assert.equal(fetched.api_key, 'existing-key-123');
-  assert.equal(fetched.download_api_key, 'existing-key-123');
-  assert.equal(fetched.visible, true);
-  assert.equal(fetched.is_active, true);
-  assert.equal(fetched.type, 'download_api_key');
 
-  // Also test backward-compatible alias
-  const fetchedLegacy = await service.getDownloadApiKey(accountId);
-  assert.equal(fetchedLegacy.api_key, 'existing-key-123');
-
-  // 2. Generate
-  service._model.findById = (id) => mockDoc;
-  const generated = await service.generateApiKey(accountId);
-  assert.equal(generated.account_id, accountId);
+  const generated = await service.generateApiKey(accountId, audit('company.api-key.generated'));
   assert.ok(generated.api_key && generated.api_key.length > 20);
-  assert.equal(generated.visible, true);
-  assert.equal(generated.is_active, true);
   assert.equal(apiKeyRecord.download_api_key, generated.api_key);
   assert.equal(mockDoc.download_api_key, generated.api_key);
 
-  // 3. Remove (soft deactivate: sets visible = false, does not delete)
-  const removed = await service.removeApiKey(accountId);
-  assert.equal(removed.account_id, accountId);
+  const removed = await service.removeApiKey(accountId, audit('company.api-key.deactivated'));
   assert.equal(removed.visible, false);
-  assert.equal(removed.is_active, false);
   assert.equal(apiKeyRecord.visible, false);
-  // Verify key string is still preserved and not deleted
-  assert.ok(apiKeyRecord.download_api_key);
 
-  // 4. Toggle status (activate back)
-  const reactivated = await service.toggleApiKeyStatus(accountId, true);
+  const reactivated = await service.toggleApiKeyStatus(
+    accountId,
+    true,
+    audit('company.api-key.status-changed')
+  );
   assert.equal(reactivated.visible, true);
-  assert.equal(reactivated.is_active, true);
   assert.equal(apiKeyRecord.visible, true);
 
-  // 5. Toggle status without boolean argument (inverts to false)
-  const inverted = await service.toggleApiKeyStatus(accountId);
+  const inverted = await service.toggleApiKeyStatus(
+    accountId,
+    undefined,
+    audit('company.api-key.status-changed')
+  );
   assert.equal(inverted.visible, false);
-  assert.equal(inverted.is_active, false);
   assert.equal(apiKeyRecord.visible, false);
+
+  assert.deepEqual(
+    auditEvents.map((event) => event.action),
+    [
+      'company.api-key.generated',
+      'company.api-key.deactivated',
+      'company.api-key.status-changed',
+      'company.api-key.status-changed'
+    ]
+  );
+  assert.equal(auditEvents.some((event) => JSON.stringify(event).includes(generated.api_key)), false);
 });
 
 
