@@ -17,6 +17,7 @@ import internalRoutes from './internal/internal.routes.js'
 import cmmsRoutes from './cmms/cmms.routes.js';
 import { setupSwagger } from './utils/swagger.js';
 import { REQUEST_LIMITS, SECURITY_DETAILS } from './configDB.js';
+import supportLoginServiceRoutes from './service/support-login.route.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -82,6 +83,7 @@ setupSwagger(app);
 const apiRouter = Router();
 apiRouter.use('/users', authenticationRoutes);
 apiRouter.use('/public', publicRoutes);
+apiRouter.use('/service/support-login', supportLoginServiceRoutes);
 apiRouter.use('/internal', auth, internalRoutes());
 apiRouter.use('/cmms', cmmsAuth, cmmsRoutes());
 app.use('/api', apiRouter);
