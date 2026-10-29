@@ -59,10 +59,10 @@ router.route('/')
 
 router.route('/:id/account-role-menu')
   .get(auth, requireCompanyAccess('id'), controller.getAccountRoleMenu)
-  .put(auth, requireCompanyAccess('id'), updateAccountRoleMenuValidator, validate, controller.updateAccountRoleMenu);
+  .put(auth, requireInternalAction('internal.companies.manage'), requireCompanyAccess('id'), updateAccountRoleMenuValidator, validate, controller.updateAccountRoleMenu);
 
 router.route('/:id/account-role-menu/reset')
-  .post(auth, requireCompanyAccess('id'), resetAccountRoleMenuValidator, validate, controller.resetAccountRoleMenu);
+  .post(auth, requireInternalAction('internal.companies.manage'), requireCompanyAccess('id'), resetAccountRoleMenuValidator, validate, controller.resetAccountRoleMenu);
 
 router.route('/:id/api-key')
   .get(auth, requireInternalAction('internal.company-keys.manage'), controller.getApiKey)
