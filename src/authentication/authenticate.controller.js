@@ -51,4 +51,29 @@ export class AuthenticationController {
       next(err);
     }
   };
+  me = async (req, res, next) => {
+    try {
+      const rawUser = typeof req.user?.toObject === 'function'
+        ? req.user.toObject()
+        : { ...req.user };
+      // Never disclose password hashes or persisted session credentials.
+      const { password, passwordHash, token, refreshToken, ...safeUser } = rawUser;
+      const service = this.getService(req);
+      const roles = await service.RoleMenuService.getRoles({
+        roleName: safeUser.user_role,
+        userId: safeUser._id,
+        visible: true
+      });
+      return res.status(200).json({
+        status: true,
+        data: {
+          userDetails: { ...safeUser, id: safeUser._id },
+          roleMenu: roles?.[0]?.roleMenu || {}
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
 }

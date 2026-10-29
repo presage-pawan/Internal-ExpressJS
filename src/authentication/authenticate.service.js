@@ -163,11 +163,8 @@ export class AuthenticationService {
   }
 
   async logout(token, userId) {
-    const [accessToken, user] = await Promise.all([
-      deleteAccessTokenByToken(token, this.connection),
-      deleteAccessTokenByUserId(userId, this.connection)
-    ]);
-    console.log({ accessToken, user });
+    // Revoke only the active session; users can have independent sessions.
+    await deleteAccessTokenByToken(token, this.connection);
     return { success: true };
   }
 }
