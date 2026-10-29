@@ -18,6 +18,7 @@ import cmmsRoutes from './cmms/cmms.routes.js';
 import { setupSwagger } from './utils/swagger.js';
 import { REQUEST_LIMITS, SECURITY_DETAILS } from './configDB.js';
 import supportLoginServiceRoutes from './service/support-login.route.js';
+import { requireInternalCsrf } from './middlewares/internal-csrf.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -84,8 +85,8 @@ const apiRouter = Router();
 apiRouter.use('/users', authenticationRoutes);
 apiRouter.use('/public', publicRoutes);
 apiRouter.use('/service/support-login', supportLoginServiceRoutes);
-apiRouter.use('/internal', auth, internalRoutes());
-apiRouter.use('/cmms', cmmsAuth, cmmsRoutes());
+apiRouter.use('/internal', auth, requireInternalCsrf, internalRoutes());
+apiRouter.use('/cmms', cmmsAuth, requireInternalCsrf, cmmsRoutes());
 app.use('/api', apiRouter);
 
 app.use((req, res, next) => {

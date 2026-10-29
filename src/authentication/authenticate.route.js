@@ -11,6 +11,7 @@ import { auth } from '../auth.js';
 import { validate } from '../middlewares/validate.js';
 import { REQUEST_LIMITS, SECURITY_DETAILS } from '../configDB.js';
 import { CookiesService } from '../utils/cookies.service.js';
+import { requireInternalCsrf } from '../middlewares/internal-csrf.js';
 
 const router = Router();
 const controller = new AuthenticationController();
@@ -89,7 +90,7 @@ router.get('/logout', (req, res, next) => {
   }
   next();
 }, auth, controller.logout);
-router.post('/logout', requireTrustedLogoutOrigin, auth, controller.logout);
+router.post('/logout', requireTrustedLogoutOrigin, auth, requireInternalCsrf, controller.logout);
 router.get('/me', auth, controller.me);
 
 export default router;

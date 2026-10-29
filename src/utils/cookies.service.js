@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { SERVER_DETAILS } from "../configDB.js";
 
 export class CookiesService {
@@ -7,6 +8,7 @@ export class CookiesService {
         || SERVER_DETAILS.protocol === 'https';
 
     static AUTH_COOKIE_NAME = CookiesService.isSecure ? '__Host-internal_access' : 'internal_access';
+    static CSRF_COOKIE_NAME = CookiesService.isSecure ? '__Host-internal_csrf' : 'internal_csrf';
 
     static DEFAULT_COOKIE_OPTIONS = {
         httpOnly: true,
@@ -15,11 +17,32 @@ export class CookiesService {
         path: '/',
     };
 
+    static signCsrf = (sessionToken, nonce) => crypto
+        .createHmac('sha256', sessionToken).update(nonce).digest('base64url');
+
     static setAuthTokenCookie = (res, token) => {
-        return res.cookie(CookiesService.AUTH_COOKIE_NAME, token, {
-            ...CookiesService.DEFAULT_COOKIE_OPTIONS,
-            maxAge: 3 * 24 * 60 * 60 * 1000
+        const ttl = 3 * 24 * 60 * 60 * 1000;
+        const nonce = crypto.randomBytes(18).toString('base64url');
+        const csrf = nonce + '.' + CookiesService.signCsrf(token, nonce);
+        res.cookie(CookiesService.AUTH_COOKIE_NAME, token, {
+            ...CookiesService.DEFAULT_COOKIE_OPTIONS, maxAge: ttl
         });
+        res.cookie(CookiesService.CSRF_COOKIE_NAME, csrf, {
+            ...CookiesService.DEFAULT_COOKIE_OPTIONS, httpOnly: false, maxAge: ttl
+        });
+        return res;
+    };
+
+    static verifyCsrfRequest = (req) => {
+        const proof = String(req.cookies?.[CookiesService.CSRF_COOKIE_NAME] || '');
+        const header = String(req.get?.('X-Internal-CSRF') || '');
+        const token = CookiesService.getAuthTokenFromCookie(req);
+        if (!token || token !== req.token || !proof || proof !== header) return false;
+        const [nonce, signature, extra] = proof.split('.');
+        if (!nonce || !signature || extra !== undefined) return false;
+        const expected = Buffer.from(CookiesService.signCsrf(token, nonce));
+        const supplied = Buffer.from(signature);
+        return expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
     };
 
     static getAuthTokenFromCookie = (req) => {
@@ -29,6 +52,7 @@ export class CookiesService {
     };
 
     static clearAuthTokenCookie = (res) => {
-        return res.clearCookie(CookiesService.AUTH_COOKIE_NAME, { ...CookiesService.DEFAULT_COOKIE_OPTIONS });
+        res.clearCookie(CookiesService.AUTH_COOKIE_NAME, { ...CookiesService.DEFAULT_COOKIE_OPTIONS });
+        return res.clearCookie(CookiesService.CSRF_COOKIE_NAME, { ...CookiesService.DEFAULT_COOKIE_OPTIONS, httpOnly: false });
     };
 }
