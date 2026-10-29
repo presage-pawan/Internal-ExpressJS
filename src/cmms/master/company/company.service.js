@@ -13,6 +13,7 @@ import {
 import { buildPermissionVersionFilter } from './account-permission-transaction.js';
 import { SecurityAuditModel } from '../../../schemas/security-audit.model.js';
 import { buildSecurityAuditEvent } from '../../../security/security-audit.js';
+import { assertCookieAuthEnabled } from './cookie-auth-policy.js';
 
 const ACCOUNT_UPDATE_FIELDS = [
     'account_name',
@@ -22,7 +23,6 @@ const ACCOUNT_UPDATE_FIELDS = [
     'description',
     'fileName',
     'default_language',
-    'cookie_status',
     'encrypt_payload',
     'encrypt_response',
     'visible',
@@ -48,14 +48,13 @@ const SUBSCRIPTION_FIELDS = [
     'asset_limit'
 ];
 
-const FEATURE_STATUS_FIELDS = ['cookie_status', 'encrypt_payload', 'encrypt_response'];
+const FEATURE_STATUS_FIELDS = ['encrypt_payload', 'encrypt_response'];
 const LIMIT_FIELDS = ['user_limit', 'location_limit', 'asset_limit'];
 const DATE_FIELDS = ['subscription_start_date', 'subscription_end_date'];
 const FILTER_FIELDS = [
     'type',
     'account_status',
     'experience_profile',
-    'cookie_status',
     'encrypt_payload',
     'encrypt_response',
     'subscription_status',
@@ -480,6 +479,7 @@ export class CompanyService {
     }
 
     buildAccountPayload(payload, options = {}) {
+        assertCookieAuthEnabled(payload);
         const accountPayload = {};
         for (const field of ACCOUNT_UPDATE_FIELDS) {
             if (this.shouldIncludeField(field, payload[field])) {
@@ -578,6 +578,7 @@ export class CompanyService {
     }
 
     buildSubscriptionPayload(payload) {
+        assertCookieAuthEnabled(payload);
         const subscriptionPayload = {};
         for (const field of SUBSCRIPTION_FIELDS) {
             if (this.shouldIncludeField(field, payload[field])) {

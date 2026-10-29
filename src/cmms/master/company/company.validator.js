@@ -7,6 +7,7 @@ import {
     ACCOUNT_SUBSCRIPTION_STATUS
 } from '../../schemas/company.model.js';
 import { validateAccountRoleMenu } from './account-role-menu.js';
+import { assertCookieAuthEnabled } from './cookie-auth-policy.js';
 
 const accountNameValidator = (field) => field
     .trim()
@@ -24,7 +25,7 @@ const optionalStringValidator = (field, label) => field
     .isString().withMessage(`${label} must be a string`);
 
 const featureFlagValidators = () => [
-    body('cookie_status').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid cookie status'),
+    body().custom((_, { req }) => { assertCookieAuthEnabled(req.body); return true; }),
     body('encrypt_payload').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid payload encryption status'),
     body('encrypt_response').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid response encryption status'),
 ];
@@ -156,7 +157,7 @@ export const listCompanyValidator = [
     query('type').optional({ checkFalsy: true }).trim().isString().withMessage('Type must be a string'),
     query('account_status').optional({ checkFalsy: true }).isIn(ACCOUNT_STATUS).withMessage('Invalid status'),
     query('experience_profile').optional({ checkFalsy: true }).isIn(EXPERIENCE_PROFILES).withMessage('Invalid experience profile'),
-    query('cookie_status').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid cookie status'),
+
     query('encrypt_payload').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid payload encryption status'),
     query('encrypt_response').optional({ checkFalsy: true }).isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid response encryption status'),
     query('subscription_type').optional({ checkFalsy: true }).isIn(ACCOUNT_SUBSCRIPTION_TYPE).withMessage('Invalid subscription type'),
