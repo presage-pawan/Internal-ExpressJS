@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { validate } from '../../middlewares/validate.js';
 import { SapMappingController } from './sap-mapping.controller.js';
-import { RoleMenuService } from '../role-menu/role-menu.service.js';
+import { requireInternalPermission } from '../../middlewares/internal-permission.js';
 import {
   createSapMappingValidator,
   listMappingUsersValidator,
@@ -13,20 +13,7 @@ import {
 const router = Router();
 const controller = new SapMappingController();
 
-const requireSapMappingPermission = (permission) => async (req, res, next) => {
-  try {
-    if (!req.user) throw Object.assign(new Error('Forbidden'), { status: 403 });
-    if (req.user.user_role === 'admin') return next();
-
-    const userId = req.user?._id || req.user?.id;
-    const roles = await new RoleMenuService(req.db_type).getRoles({ userId, visible: true });
-    const permissions = roles[0]?.roleMenu?.sap_mapping;
-    if (!permissions?.[permission]) throw Object.assign(new Error('Forbidden'), { status: 403 });
-    return next();
-  } catch (error) {
-    return next(error);
-  }
-};
+const requireSapMappingPermission = permission => requireInternalPermission('sap_mapping', permission);
 
 router.get('/options/accounts', requireSapMappingPermission('view'), controller.listAccounts);
 router.get('/options/users', requireSapMappingPermission('view'), listMappingUsersValidator, validate, controller.listUsers);
