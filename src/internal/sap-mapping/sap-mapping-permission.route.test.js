@@ -7,7 +7,7 @@ test('SAP mapping read, create, change and delete routes require action-level se
     ['/', 'get'], ['/', 'post'], ['/:id', 'get'],
     ['/:id', 'put'], ['/:id', 'delete']];
   for (const [path, method] of cases) {
-    const route = router.stack.find(item => item.route?.path === path)?.route;
+    const route = router.stack.find(item => item.route?.path === path && item.route.stack.some(layer => layer.method === method))?.route;
     assert.ok(route, path);
     const handlers = route.stack.filter(layer => layer.method === method);
     assert.ok(handlers.length > 1);
