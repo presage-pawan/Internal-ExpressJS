@@ -19,9 +19,12 @@ test('Internal cookies are host-only, HttpOnly and namespaced away from CMMS', (
   assert.equal(CookiesService.getAuthTokenFromCookie({ cookies: { access_token: 'cmms-legacy' } }), null);
   assert.equal(CookiesService.getAuthTokenFromCookie({ cookies: { [CookiesService.AUTH_COOKIE_NAME]: 'internal' } }), 'internal');
   CookiesService.clearAuthTokenCookie(response);
-  assert.equal(calls[1][1], CookiesService.AUTH_COOKIE_NAME);
-  assert.equal(calls[1][2].path, '/');
-  assert.equal(Object.hasOwn(calls[1][2], 'domain'), false);
+  const cleared = calls.filter(call => call[0] === 'clear');
+  assert.deepEqual(cleared.map(call => call[1]), [CookiesService.AUTH_COOKIE_NAME, CookiesService.CSRF_COOKIE_NAME]);
+  for (const call of cleared) {
+    assert.equal(call[2].path, '/');
+    assert.equal(Object.hasOwn(call[2], 'domain'), false);
+  }
 });
 
 test('authenticated /me restores sanitized user and server-side role menu', async () => {
