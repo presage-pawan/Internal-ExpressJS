@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { validate } from '../../middlewares/validate.js';
 import { InvoiceController } from './invoice.controller.js';
-import { RoleMenuService } from '../role-menu/role-menu.service.js';
+import { requireAnyInternalPermission, requireInternalPermission } from '../../middlewares/internal-permission.js';
 import {
   bulkCreateInvoiceValidator,
   createInvoiceValidator,
@@ -15,45 +15,14 @@ import {
 const router = Router();
 const controller = new InvoiceController();
 
-const requireInvoicePermission = (permission) => async (req, res, next) => {
-  try {
-    const userId = req.user?._id || req.user?.id;
-    const roles = await new RoleMenuService(req.db_type).getRoles({ userId, visible: true });
-    const invoicePermissions = roles[0]?.roleMenu?.invoice_tracker;
-    if (!invoicePermissions && req.user?.user_role === 'admin') {
-      return next();
-    }
-    if (!invoicePermissions?.[permission]) {
-      throw Object.assign(new Error('Forbidden'), { status: 403 });
-    }
-    return next();
-  } catch (err) {
-    return next(err);
-  }
-};
-
+const requireInvoicePermission = permission => requireInternalPermission('invoice_tracker', permission);
 const requireInvoiceView = requireInvoicePermission('view');
 const requireInvoiceAdd = requireInvoicePermission('add');
 const requireInvoiceEdit = requireInvoicePermission('edit');
 const requireInvoiceDelete = requireInvoicePermission('delete');
 const requireInvoiceImport = requireInvoicePermission('import');
 
-const requireAnyInvoiceExportOrView = async (req, res, next) => {
-  try {
-    const userId = req.user?._id || req.user?.id;
-    const roles = await new RoleMenuService(req.db_type).getRoles({ userId, visible: true });
-    const invoicePermissions = roles[0]?.roleMenu?.invoice_tracker;
-    if (!invoicePermissions && req.user?.user_role === 'admin') {
-      return next();
-    }
-    if (!invoicePermissions?.view && !invoicePermissions?.export) {
-      throw Object.assign(new Error('Forbidden'), { status: 403 });
-    }
-    return next();
-  } catch (err) {
-    return next(err);
-  }
-};
+const requireAnyInvoiceExportOrView = requireAnyInternalPermission('invoice_tracker', ['export', 'view']);
 
 const requireInvoiceScheduleView = (req, res, next) => requireInvoiceView(req, res, next);
 
