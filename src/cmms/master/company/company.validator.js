@@ -25,7 +25,8 @@ const optionalStringValidator = (field, label) => field
     .isString().withMessage(`${label} must be a string`);
 
 const featureFlagValidators = () => [
-    body().custom((_, { req }) => { assertCookieAuthEnabled(req.body); return true; }),
+    body('cookie_status').optional().custom((value) => { assertCookieAuthEnabled({ cookie_status: value }); return true; }),
+    body('cookies_status').optional().custom((value) => { assertCookieAuthEnabled({ cookies_status: value }); return true; }),
     body('encrypt_payload').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid payload encryption status'),
     body('encrypt_response').optional().isIn(ACCOUNT_FEATURE_STATUS).withMessage('Invalid response encryption status'),
 ];
