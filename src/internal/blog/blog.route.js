@@ -2,6 +2,7 @@ import express from 'express';
 import { BlogController } from './blog.controller.js';
 import { createBlogValidator, updateBlogValidator } from './blog.validator.js';
 import { validate } from '../../middlewares/validate.js';
+import { requireInternalPermission } from '../../middlewares/internal-permission.js';
 
 const router = express.Router();
 const controller = new BlogController();
@@ -25,7 +26,7 @@ const controller = new BlogController();
  */
 router
   .route('/')
-  .get(controller.getAll)
+  .get(requireInternalPermission('blog', 'view'), controller.getAll)
   /**
    * @swagger
    * /api/internal/blogs:
@@ -42,7 +43,7 @@ router
    *       201:
    *         description: Blog created
    */
-  .post(createBlogValidator, validate, controller.create);
+  .post(requireInternalPermission('blog', 'add'), createBlogValidator, validate, controller.create);
 
 /**
  * @swagger
@@ -62,7 +63,7 @@ router
  */
 router
   .route('/:id')
-  .get(controller.getById)
+  .get(requireInternalPermission('blog', 'view'), controller.getById)
   /**
    * @swagger
    * /api/internal/blogs/{id}:
@@ -79,7 +80,7 @@ router
    *       200:
    *         description: Blog updated
    */
-  .put(updateBlogValidator, validate, controller.update)
+  .put(requireInternalPermission('blog', 'edit'), updateBlogValidator, validate, controller.update)
   /**
    * @swagger
    * /api/internal/blogs/{id}:
@@ -96,7 +97,7 @@ router
    *       200:
    *         description: Blog updated
    */
-  .patch(updateBlogValidator, validate, controller.updatePartial)
+  .patch(requireInternalPermission('blog', 'edit'), updateBlogValidator, validate, controller.updatePartial)
   /**
    * @swagger
    * /api/internal/blogs/{id}:
@@ -113,6 +114,6 @@ router
    *       200:
    *         description: Blog deleted
    */
-  .delete(controller.delete);
+  .delete(requireInternalPermission('blog', 'delete'), controller.delete);
 
 export default router;
