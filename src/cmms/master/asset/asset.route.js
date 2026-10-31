@@ -72,6 +72,8 @@ router.route('/')
  *       200:
  *         description: Asset details
  */
+router.get('/:id/reliability',auth,controller.getReliability);
+
 router.route('/:id')
   .get(auth, controller.getById)
   /**

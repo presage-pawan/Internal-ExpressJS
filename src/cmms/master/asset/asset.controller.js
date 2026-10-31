@@ -1,6 +1,7 @@
 import { validateObjectId } from '../../../utils/helper.js';
 import { bindCompanyPayload } from '../../tenant-payload.js';
 import { AssetService } from './asset.service.js';
+import { getAssetReliability } from './asset-reliability.service.js';
 
 export class AssetController {
 
@@ -35,6 +36,16 @@ export class AssetController {
     } catch (err) {
       next(err);
     }
+  };
+
+  getReliability = async (req,res,next) => {
+    try {
+      const service=this.getService(req);
+      const asset=await service.getById(validateObjectId(req.params.id),{companyId:req.companyId});
+      if(!asset||asset.visible===false)throw Object.assign(new Error('Asset not found'),{status:404});
+      const data=await getAssetReliability(service.connection,asset);
+      res.status(200).json({status:true,data});
+    }catch(error){next(error);}
   };
 
   getById = async (req, res, next) => {
